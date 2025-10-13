@@ -209,6 +209,6 @@ if __name__ == "__main__":
         img_fns=img_fns,
         ws=args.ws,
         moca_processor=moca_processor,
-        pre_cfg=prep_cfg,
+        pre_cfg=prep_cfg, # type: ignore
         resample_for_dynamic=not args.skip_dynamic_resample,
     )

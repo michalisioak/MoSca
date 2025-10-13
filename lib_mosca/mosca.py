@@ -183,6 +183,7 @@ class MoSca(nn.Module):
 
     @property
     def device(self):
+        assert self._node_xyz != None 
         return self._node_xyz.device
 
     @property
@@ -362,6 +363,7 @@ class MoSca(nn.Module):
         # update the D_topo
         old_M = len(self._D_topo)
         append_M = self.M - old_M
+        new_D = None
         if append_M > 0:
             bottom = __query_distance_to_curve__(
                 q_curve_xyz=self._node_xyz[:, old_M:],
@@ -386,6 +388,7 @@ class MoSca(nn.Module):
 
         # update the knn and mask
         assert len(self.topo_knn_ind) == old_M
+        assert new_D != None
         new_topo_dist, new_topo_knn_ind = __compute_topo_ind_from_dist__(
             new_D[old_M:], self.skinning_k - 1
         )
@@ -705,7 +708,7 @@ class MoSca(nn.Module):
             )
             dist_sq = dist_sq[0, :, 0]
             nearest_ind = torch.argsort(dist_sq)[:chunk_size]
-            nearest_mask = torch.zeros(len(new_node_xyz), dtype=bool)
+            nearest_mask = torch.zeros(len(new_node_xyz), dtype=torch.bool)
             nearest_mask[nearest_ind] = True
             working_node_xyz = new_node_xyz[nearest_mask]
             working_node_quat = new_node_quat[nearest_mask]
@@ -732,6 +735,7 @@ class MoSca(nn.Module):
                     check_error = (working_node_xyz_t - working_node_xyz).norm(dim=-1)
                     assert check_error.max() < 1e-6
                 node_xyz_list.append(working_node_xyz_t)
+                assert working_node_fr_t != None
                 node_quat_list.append(matrix_to_quaternion(working_node_fr_t))
 
             to_append_node_xyz = torch.stack(node_xyz_list, 0)
@@ -1231,6 +1235,7 @@ def __query_distance_to_curve__(
     else:
         b_mask = b_mask.bool().to(b_curve_xyz.device)
 
+    t_choice = None
     if T > max_subsample_T:
         t_choice = torch.randperm(T)[:max_subsample_T]
         t_choice = torch.sort(t_choice)[0]
@@ -1279,6 +1284,7 @@ def _compute_curve_topo_dist_(
     else:
         curve_mask = curve_mask.bool().to(curve_xyz.device)
 
+    t_choice =None
     if T > max_subsample_T:
         t_choice = torch.randperm(T)[:max_subsample_T]
         t_choice = torch.sort(t_choice)[0]

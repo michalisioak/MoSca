@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -19,7 +20,7 @@ class MonocularCameras(nn.Module):
         n_time_steps,
         default_H,
         default_W,
-        fxfycxcy: list = None,  # intr init 1, fxfy in deg, cxcy in ratio [53.1, 53.1, 0.5, 0.5]
+        fxfycxcy: Optional[list] = None,  # intr init 1, fxfy in deg, cxcy in ratio [53.1, 53.1, 0.5, 0.5]
         K=None,  # intr init 2, K is 3x3 mat
         #
         delta_flag=True,
@@ -337,12 +338,15 @@ class MonocularCameras(nn.Module):
         pts_c = torch.einsum("ij,nj->ni", R, pts_w.reshape(-1, 3)) + t
         return pts_c.reshape(*original_shape)
 
-    def get_homo_coordinate_map(self, H=None, W=None):
+    def get_homo_coordinate_map(self, H:Optional[int]=None, W:Optional[int]=None):
+        u_range = [0,0]
         if H is None:
             H = self.default_H.item()
         if W is None:
             W = self.default_W.item()
         # the grid take the short side has (-1,+1)
+        assert H != None
+        assert W != None
         if H > W:
             u_range = [-1.0, 1.0]
             v_range = [-float(H) / W, float(H) / W]
@@ -350,7 +354,7 @@ class MonocularCameras(nn.Module):
             u_range = [-float(W) / H, float(W) / H]
             v_range = [-1.0, 1.0]
         # make uv coordinate
-        u, v = np.meshgrid(np.linspace(*u_range, W), np.linspace(*v_range, H))
+        u, v = np.meshgrid(np.linspace(u_range[0],u_range[1], W), np.linspace(v_range[0],v_range[1], H))
         uv = np.stack([u, v], axis=-1)  # H,W,2
         return torch.from_numpy(uv).to(self.rel_focal).to(self.rel_focal.device)
 
@@ -391,7 +395,7 @@ def __backproject__(uv, d, cams):
     return xyz
 
 
-def __get_homo_coordinate_map__(H, W):
+def __get_homo_coordinate_map__(H:int, W:int):
     # the grid take the short side has (-1,+1)
     if H > W:
         u_range = [-1.0, 1.0]
@@ -400,6 +404,6 @@ def __get_homo_coordinate_map__(H, W):
         u_range = [-float(W) / H, float(W) / H]
         v_range = [-1.0, 1.0]
     # make uv coordinate
-    u, v = np.meshgrid(np.linspace(*u_range, W), np.linspace(*v_range, H))
+    u, v = np.meshgrid(np.linspace(u_range[0],u_range[1], W), np.linspace(v_range[0],v_range[1], H))
     uv = np.stack([u, v], axis=-1)  # H,W,2
     return uv

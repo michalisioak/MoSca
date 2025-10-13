@@ -152,7 +152,7 @@ def get_move_around_cam_T_cw(
     total_steps,
     center_id=None,
 ):
-
+    move_around_radius, focus_point = None, None
     # in the xy plane, the new camera is forming a circle
     move_around_view_list = []
     for i in tqdm(range(total_steps)):
@@ -201,6 +201,7 @@ def get_move_around_cam_T_cw(
         T_c_new = torch.eye(4).to(cams.T_wc(0))
         T_c_new[0, -1] = x
         T_c_new[1, -1] = y
+        assert focus_point is not None
         _z_dir = F.normalize(focus_point[:3] - T_c_new[:3, -1], dim=0)
         _x_dir = F.normalize(
             torch.cross(torch.Tensor([0.0, 1.0, 0.0]).to(_z_dir), _z_dir), dim=0
@@ -278,6 +279,7 @@ def viz_single_2d_flow_video(
     bg_color=[0.0, 0.0, 0.0],
 ):
     rgb_viz_list = []
+    viz_choice = None
 
     # ! color the node
     pts_first = d_model(0)[0]

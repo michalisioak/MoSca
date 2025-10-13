@@ -130,7 +130,7 @@ def render_test(
     test_camera_T_wi,
     test_camera_tid,
     save_dir=None,
-    fn_list=None,
+    fn_list:list[str]=[],
     focal=None,
     cxcy_ratio=None,
     # cover_factor=0.3,
@@ -204,7 +204,7 @@ def render_test_tto(
     ###
     gt_mask_dir=None,
     save_dir=None,
-    fn_list=None,
+    fn_list:list[str]=[],
     focal=None,
     cxcy_ratio=None,
     # dbg
@@ -297,6 +297,8 @@ def render_test_tto(
         )
 
         loss_list = []
+
+        T_cw = None
 
         with torch.no_grad():
             gs5 = [s_model(), d_model(working_t)]  # ! this does not change

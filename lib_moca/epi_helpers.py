@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from multiprocessing.dummy import Pool
-import multiprocessing
+import multiprocessing.dummy
 import os, os.path as osp
 import json, logging, time
 from matplotlib import cm

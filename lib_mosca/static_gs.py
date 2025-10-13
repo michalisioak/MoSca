@@ -449,7 +449,7 @@ class StaticGaussian(nn.Module):
             (
                 selected_pts_mask,
                 torch.zeros(
-                    N * selected_pts_mask.sum(), device=self.device, dtype=bool
+                    int(N * selected_pts_mask.sum().item()), device=self.device, dtype=torch.bool
                 ),
             )
         )

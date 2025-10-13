@@ -340,6 +340,8 @@ def viz_scene(
     draw_camera_frames=False,
     return_full=False,
 ):
+    cam_viz_mask = None
+    camera_down20_R_wc, camera_down20_t_wc = None, None
     # auto select viewpoint
     # manually add the camera viz to to
     if model is None:
@@ -455,6 +457,7 @@ def add_camera_frame(
 
 
 def draw_frame(R_wc, t_wc, size=0.1, weight=0.01, color=None, opa=1.0):
+    mu, fr, s, o, rgb = None,None,None,None,None
     if not isinstance(R_wc, torch.Tensor):
         R_wc = torch.as_tensor(R_wc)
     if not isinstance(t_wc, torch.Tensor):

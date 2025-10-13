@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     wget git curl bzip2 build-essential ca-certificates gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y libgl1-mesa-glx libglib2.0-0
+
 # ===============================
 # Install full Anaconda
 # ===============================

@@ -138,6 +138,7 @@ def moca_solve(
     robust_std_decay_sigma = robust_std_decay_sigma * depth_median
 
     # * 1. mark static track
+    epierr_list = None
     if static_id_mode == "raft":
         logging.info(f"Use pre-computed 2D epi error to mark static tracks")
         # * mark by collecting epi error
@@ -158,6 +159,7 @@ def moca_solve(
             continuous_pair_list=continuous_pair_list,
             F_list=F_list,
         )
+    assert epierr_list != None
     track_static_selection, track_dynamic_selection = identify_tracks(
         epierr_list, epi_th
     )

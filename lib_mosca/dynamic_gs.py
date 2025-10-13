@@ -195,8 +195,9 @@ class DynSCFGaussian(nn.Module):
         return
 
     def summary(self, lite=False):
+        
         logging.info(
-            f"DenseDynGaussian: {self.N/1000.0:.1f}K points; {self.M} Nodes; K={self.scf.skinning_k}; and {self.T} time step"
+            f"DenseDynGaussian: {self.N/1000.0:.1f}K points; {self.M} Nodes; K={self.scf.skinning_k if self.scf!= None else None}; and {self.T} time step"
         )
         if lite:
             return
@@ -249,6 +250,7 @@ class DynSCFGaussian(nn.Module):
 
     @property
     def device(self):
+        assert self.scf != None
         return self.scf.device
 
     @property

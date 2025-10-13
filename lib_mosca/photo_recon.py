@@ -443,6 +443,9 @@ class DynReconstructionSolver:
         photo_s2d_trans_steps=[],
     ):
         logging.info(f"Finetune with GS-BACKEND={GS_BACKEND.lower()}")
+        optimizer_dynamic = None
+        dst_xyz_cam = None
+        reg_tids = None
 
         torch.cuda.empty_cache()
         n_frame = 1
@@ -545,9 +548,11 @@ class DynReconstructionSolver:
             s_model.zero_grad()
             s2d.zero_grad()
             if d_flag:
+                assert optimizer_dynamic != None
                 optimizer_dynamic.zero_grad()
                 d_model.zero_grad()
                 if step % topo_update_feq == 0:
+                    assert d_model.scf != None
                     d_model.scf.update_topology()
 
             if step > decay_start:
@@ -740,6 +745,7 @@ class DynReconstructionSolver:
                     s_cate_sph, s_gid2color = s_model.get_cate_color(
                         perm=torch.randperm(len(s_model.group_id.unique()))
                     )
+                    assert d_model.scf != None
                     d_cate_sph, d_gid2color = d_model.get_cate_color(
                         perm=torch.randperm(len(d_model.scf.unique_grouping))
                     )
@@ -773,6 +779,7 @@ class DynReconstructionSolver:
                 _r = min(cams.T, view_ind_list[0] + 1 + reg_radius)
                 reg_tids = torch.arange(_l, _r, device=s_model.device)
             if (lambda_arap_coord > 0.0 or lambda_arap_len > 0.0) and d_flag:
+                assert d_model.scf != None
                 loss_arap_coord, loss_arap_len = d_model.scf.compute_arap_loss(
                     reg_tids,
                     temporal_diff_shift=temporal_diff_shift,
@@ -781,8 +788,8 @@ class DynReconstructionSolver:
                 assert torch.isnan(loss_arap_coord).sum() == 0
                 assert torch.isnan(loss_arap_len).sum() == 0
             else:
-                loss_arap_coord = torch.zeros_like(loss_rgb)
-                loss_arap_len = torch.zeros_like(loss_rgb)
+                loss_arap_coord = torch.zeros_like(torch.tensor(loss_rgb))
+                loss_arap_len = torch.zeros_like(torch.tensor(loss_rgb))
 
             if (
                 lambda_vel_xyz_reg > 0.0
@@ -790,6 +797,7 @@ class DynReconstructionSolver:
                 or lambda_acc_xyz_reg > 0.0
                 or lambda_acc_rot_reg > 0.0
             ) and d_flag:
+                assert d_model.scf != None
                 (
                     loss_vel_xyz_reg,
                     loss_vel_rot_reg,
@@ -799,12 +807,12 @@ class DynReconstructionSolver:
             else:
                 loss_vel_xyz_reg = loss_vel_rot_reg = loss_acc_xyz_reg = (
                     loss_acc_rot_reg
-                ) = torch.zeros_like(loss_rgb)
+                ) = torch.zeros_like(torch.tensor(loss_rgb))
 
             if d_flag:
                 loss_small_w = abs(d_model._skinning_weight).mean()
             else:
-                loss_small_w = torch.zeros_like(loss_rgb)
+                loss_small_w = torch.zeros_like(torch.tensor(loss_rgb))
 
             loss = (
                 loss_rgb * lambda_rgb
@@ -1230,9 +1238,10 @@ class DynReconstructionSolver:
         
 
     @torch.no_grad()
-    def render_all(self, cams: MonocularCameras, s_model=None, d_model=None):
+    def render_all(self, cams: MonocularCameras, s_model: Optional[StaticGaussian]=None, d_model=None):
         ret = []
         assert s_model is not None or d_model is not None, "No model to render"
+        assert s_model != None
         s_gs5 = s_model()
         for t in tqdm(range(cams.T)):
             gs5 = [s_gs5]

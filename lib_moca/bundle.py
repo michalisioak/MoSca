@@ -56,7 +56,7 @@ def compute_static_ba(
     #
     optimizer_class=torch.optim.Adam,
 ):
-
+    
     viz_dir = osp.join(log_dir, "static_ba_viz")
     os.makedirs(viz_dir, exist_ok=True)
 
@@ -104,6 +104,7 @@ def compute_static_ba(
     s_track_valid_mask_w = s_track_valid_mask.float()
     s_track_valid_mask_w = s_track_valid_mask_w / s_track_valid_mask_w.sum(0)
 
+    huber_loss = None
     if huber_delta > 0:
         logging.info(f"Use Huber Loss with delta={huber_delta}")
         huber_loss = torch.nn.HuberLoss(reduction="none", delta=huber_delta)
@@ -201,6 +202,7 @@ def compute_static_ba(
         uv_loss_i = (uv_src_to_every_frame - uv_target).norm(dim=-1)
 
         if huber_delta > 0:
+            assert huber_loss != None
             uv_loss_i = huber_loss(uv_loss_i, torch.zeros_like(uv_loss_i))
         uv_loss = (uv_loss_i * cross_time_mask).sum() / (cross_time_mask.sum() + 1e-6)
 
@@ -215,6 +217,7 @@ def compute_static_ba(
         ) + 0.5 * abs(warped_depth / torch.clamp(dep_target, min=1e-6) - 1)
         # todo: this may be unstable... for fare away depth points!!!
         if huber_delta > 0:
+            assert huber_loss != None
             dep_consistency_i = huber_loss(
                 dep_consistency_i, torch.zeros_like(dep_consistency_i)
             )
