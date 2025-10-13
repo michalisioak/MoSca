@@ -59,7 +59,7 @@ class DynSCFGaussian(nn.Module):
 
     def __init__(
         self,
-        scf: MoSca = None,
+        scf: MoSca | None = None,
         max_scale=0.1,  # use sigmoid activation, can't be too large
         min_scale=0.0,
         max_sph_order=0,

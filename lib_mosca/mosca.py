@@ -159,7 +159,7 @@ class MoSca(nn.Module):
         ), f"Node num {self.M} is less than {self.min_node_num}"
         self.to(init_device)
         self.summary()
-        return
+        
 
     def set_skinning_method(self):
         if self.blending_method == 0:

@@ -1,5 +1,6 @@
 # from origial reconstruction.py import all rendering related stuff
 import sys, os, os.path as osp
+from typing import Optional
 import torch
 import logging
 from tqdm import tqdm
@@ -94,7 +95,7 @@ class DynReconstructionSolver:
 
         self.radius_init_factor = radius_init_factor
         self.opacity_init_factor = opacity_init_factor
-        return
+        
 
     @torch.no_grad()
     def identify_fg_mask_by_nearest_curve(
@@ -159,8 +160,8 @@ class DynReconstructionSolver:
     @torch.no_grad()
     def compute_normals_for_s2d(
         self,
-        s2d,
-        cams,
+        s2d: Saved2D,
+        cams: MonocularCameras,
         patch_size=7,
         nn_dist_th=0.03,
         nn_min_cnt=4,
@@ -216,7 +217,7 @@ class DynReconstructionSolver:
 
         s2d.register_buffer("nrm", ret_nrm.detach().clone())
         s2d.dep_mask = ret_mask.detach().clone()
-        return
+        
 
     @torch.no_grad()
     def get_static_model(
@@ -344,7 +345,7 @@ class DynReconstructionSolver:
         s2d: Saved2D,
         cams: MonocularCameras,
         s_model: StaticGaussian,
-        d_model: DynSCFGaussian = None,
+        d_model: Optional[DynSCFGaussian] = None,
         optim_cam_after_steps=0,
         total_steps=8000,
         topo_update_feq=50,
@@ -510,6 +511,7 @@ class DynReconstructionSolver:
         if d_flag:
             # ! for now the group rendering only works for dynamic joitn mode
             n_group_static = len(s_model.group_id.unique())
+            assert d_model.scf != None, "d_model is None"
             n_group_dynamic = len(d_model.scf.unique_grouping)
             color_plate = get_colorplate(n_group_static + n_group_dynamic)
             # random permute
@@ -596,6 +598,7 @@ class DynReconstructionSolver:
                 add_buffer = None
                 if corr_exe_flag:
                     # ! detach bg pts
+                    assert d_model != None, "d_model is None"
                     dst_xyz = torch.cat([gs5[0][0].detach(), d_model(dst_ind)[0]], 0)
                     dst_xyz_cam = cams.trans_pts_to_cam(dst_ind, dst_xyz)
                     if GS_BACKEND in ["native_add3"]:
@@ -1224,7 +1227,7 @@ class DynReconstructionSolver:
                 d_model.return_cate_colors_flag = False
                 s_model.return_cate_colors_flag = False
         torch.cuda.empty_cache()
-        return
+        
 
     @torch.no_grad()
     def render_all(self, cams: MonocularCameras, s_model=None, d_model=None):
