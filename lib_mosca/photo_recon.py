@@ -615,7 +615,7 @@ class DynReconstructionSolver:
                     bg_color = np.random.rand(3).tolist()
                 else:
                     bg_color = default_bg_color  # [1.0, 1.0, 1.0]
-                if GS_BACKEND in ["natie_add3"]:
+                if GS_BACKEND in ["natie_add3"]: # WARNING TYPO
                     # the render internally has another protection, because if not set, the grad has bug
                     bg_color += [0.0, 0.0, 0.0]
 

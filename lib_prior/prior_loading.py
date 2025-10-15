@@ -148,6 +148,7 @@ def visualize_track(save_fn, tracks, visibility, video_pt, max_viz_cnt=512):
     )
 
 
+
 class Saved2D(nn.Module):
     def __init__(self, ws) -> None:
         super().__init__()

@@ -1,6 +1,7 @@
 # useful function for reconstruction solver
 
 # Single File
+from typing import List, Optional
 from matplotlib import pyplot as plt
 import torch, numpy as np
 from pytorch3d.transforms import (
@@ -431,6 +432,134 @@ def fetch_leaves_in_world_frame(
         rgb_init.to(device),
         inst_init,
         time_init.to(device),
+    )
+
+@torch.no_grad()
+def fetch_leaves_in_world_frame2(
+    cameras: MonocularCameras,
+    num_points_to_attach: int,  # if negative use all
+    #
+    input_mask_list: List[torch.Tensor],
+    input_depth_list: List[torch.Tensor],
+    input_rgb_list: List[torch.Tensor],
+    input_normal_list: Optional[List[torch.Tensor]] = None,  # ! in new version, do not use this
+    input_instance_list: Optional[List[torch.Tensor]] = None,  # ! in new version, do not use this
+    #
+    save_pointcloud_filename: Optional[str] = None,
+    start_time: int = 0,
+    end_time: int = -1,
+    time_list: Optional[List[int]] = None,
+    subsample_factor: int = 1,
+    squeeze_normal_ratio: float = 1.0,
+):
+    device = cameras.relative_focal_length.device
+
+    if end_time == -1:
+        end_time = cameras.num_timesteps
+    if time_list is None:
+        time_list = list(range(start_time, end_time))
+    if subsample_factor > 1:
+        logging.info(f"2D Subsample {subsample_factor} for fetching ...")
+
+    position_list, quaternion_list, scale_list, color_list, time_index_list = [], [], [], [], []
+    instance_id_list = []  # collect the leaf id as well
+
+    for current_time in tqdm(time_list):
+        binary_mask = input_mask_list[current_time].bool()
+        height, width = binary_mask.shape
+        if subsample_factor > 1:
+            # Apply subsampling by skipping pixels
+            binary_mask[::subsample_factor, ::subsample_factor] = False
+
+        depth_map = input_depth_list[current_time].clone()
+        homogeneous_coordinates = cameras.get_homo_coordinate_map(height, width)[binary_mask].clone()
+        pointcloud_in_camera_frame = cameras.backproject(homogeneous_coordinates, depth_map[binary_mask])
+        
+        camera_rotation_world_to_camera, camera_translation_world_to_camera = cameras.get_rotation_translation_world_to_camera(current_time)
+        pointcloud_in_world_frame = cameras.transform_points_to_world(current_time, pointcloud_in_camera_frame)
+        
+        rgb_map = input_rgb_list[current_time].clone()
+        point_colors = rgb_map[binary_mask]
+        
+        camera_intrinsics = cameras.get_intrinsics(height, width)
+        focal_length_average = 0.5 * camera_intrinsics[0, 0] + 0.5 * camera_intrinsics[1, 1]
+        point_radii = pointcloud_in_camera_frame[:, -1] / focal_length_average * float(subsample_factor)
+        point_scales = torch.stack([
+            point_radii / squeeze_normal_ratio, 
+            point_radii, 
+            point_radii
+        ], dim=-1)
+        
+        time_indices = torch.ones_like(pointcloud_in_world_frame[:, 0]).long() * current_time
+
+        if input_normal_list is not None:
+            normal_map = input_normal_list[current_time].clone()
+            surface_normals_in_camera_frame = normal_map[binary_mask]
+            surface_normals_in_world_frame = F.normalize(
+                torch.einsum("ij,nj->ni", camera_rotation_world_to_camera, surface_normals_in_camera_frame), 
+                dim=-1
+            )
+            # Construct local coordinate frame from normals
+            x_axis = surface_normals_in_world_frame.clone()
+            y_axis = F.normalize(torch.cross(x_axis, pointcloud_in_world_frame, dim=-1), dim=-1)
+            z_axis = F.normalize(torch.cross(x_axis, y_axis, dim=-1), dim=-1)
+            rotation_matrix = torch.stack([x_axis, y_axis, z_axis], dim=-1)
+        else:
+            rotation_matrix = torch.eye(3)[None].expand(len(point_radii), -1, -1)
+        
+        quaternion_rotation = matrix_to_quaternion(rotation_matrix)
+
+        position_list.append(pointcloud_in_world_frame.cpu())
+        quaternion_list.append(quaternion_rotation.cpu())
+        scale_list.append(point_scales.cpu())
+        color_list.append(point_colors.cpu())
+        time_index_list.append(time_indices.cpu())
+
+        if input_instance_list is not None:
+            instance_map = input_instance_list[current_time].clone()
+            instance_ids = instance_map[binary_mask]
+            instance_id_list.append(instance_ids.cpu())
+
+    all_positions = torch.cat(position_list, 0)
+    all_quaternions = torch.cat(quaternion_list, 0)
+    all_scales = torch.cat(scale_list, 0)
+    all_colors = torch.cat(color_list, 0)
+
+    logging.info(f"Fetching {num_points_to_attach/1000.0:.3f}K out of {len(all_positions)/1e6:.3}M points")
+    if num_points_to_attach > len(all_positions) or num_points_to_attach <= 0:
+        selected_indices = torch.arange(len(all_positions))
+    else:
+        selected_indices = torch.randperm(len(all_positions))[:num_points_to_attach]
+
+    # Prepare Gaussian splatting parameters (position, rotation, scale, opacity, spherical harmonics)
+    initial_positions = all_positions[selected_indices].clone()
+    initial_quaternions = all_quaternions[selected_indices].clone()
+    initial_scales = all_scales[selected_indices].clone()
+    initial_opacities = torch.ones(len(selected_indices), 1).to(initial_positions)
+    initial_colors = all_colors[selected_indices].clone()
+    initial_time_indices = torch.cat(time_index_list, 0)[selected_indices]
+    
+    if len(instance_id_list) > 0:
+        all_instance_ids = torch.cat(instance_id_list, 0)
+        initial_instance_ids = all_instance_ids[selected_indices].clone().to(device)
+    else:
+        initial_instance_ids = None
+        
+    if save_pointcloud_filename is not None:
+        np.savetxt(
+            save_pointcloud_filename,
+            torch.cat([initial_positions, initial_colors * 255], 1).detach().cpu().numpy(),
+            fmt="%.6f",
+        )
+    torch.cuda.empty_cache()
+    return (
+        initial_positions.to(device),
+        initial_quaternions.to(device),
+        initial_scales.to(device),
+        initial_opacities.to(device),
+        initial_colors.to(device),
+        initial_instance_ids,
+        initial_time_indices.to(device),
     )
 
 
