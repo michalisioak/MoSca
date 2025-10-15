@@ -18,12 +18,12 @@ $CXX --version
 ################################################################################    
 pip install numpy==$NUMPY_VERSION
 # conda install pytorch==2.1.0 torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
-conda install pytorch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+conda install pytorch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 pytorch-cuda=11.8 -c pytorch -c nvidia -y
 python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
 conda install fvcore iopath -c fvcore -c iopath -c conda-forge -y
 conda install nvidiacub -c bottler -y
 conda install pytorch3d -c pytorch3d -y
-pip install pyg_lib torch_scatter torch_geometric torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.1+cu121.html
+pip install pyg_lib torch_scatter torch_geometric torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.1+cu118.html
 ################################################################################
 
 ################################################################################
@@ -51,5 +51,6 @@ pip install mmcv-full==1.7.2
 
 ################################################################################
 echo "Install JAX for evaluating DyCheck"
-pip install -r jax_requirements.txt --dry-run
+pip install --upgrade "jax[cuda11]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html --dry-run
+# pip install -r jax_requirements.txt --dry-run
 ################################################################################

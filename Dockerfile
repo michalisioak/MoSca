@@ -1,7 +1,7 @@
 # ===============================
 # Base: Ubuntu + CUDA 11.8
 # ===============================
-FROM docker.io/nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
+FROM docker.io/nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
 ARG ENV_NAME=mosca
 ARG NUMPY_VERSION=1.26.4
