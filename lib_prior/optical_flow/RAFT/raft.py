@@ -78,7 +78,7 @@ class RAFT(nn.Module):
         mask = mask.view(N, 1, 9, 8, 8, H, W)
         mask = torch.softmax(mask, dim=2)
 
-        up_flow = F.unfold(8 * flow, [3,3], padding=1)
+        up_flow = F.unfold(8 * flow, (3,3), padding=1)
         up_flow = up_flow.view(N, 2, 9, 1, 1, H, W)
 
         up_flow = torch.sum(mask * up_flow, dim=2)

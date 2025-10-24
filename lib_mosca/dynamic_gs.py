@@ -59,7 +59,7 @@ class DynSCFGaussian(nn.Module):
 
     def __init__(
         self,
-        scf: MoSca | None = None,
+        scf: MoSca ,
         max_scale=0.1,  # use sigmoid activation, can't be too large
         min_scale=0.0,
         max_sph_order=0,
@@ -803,6 +803,7 @@ class DynSCFGaussian(nn.Module):
         for t in range(self.T):
             mu, fr, _, _, _ = self.forward(t)
             gs_mu_list.append(mu[candidate_mask])
+            assert fr is not None
             gs_fr_list.append(fr[candidate_mask])
 
         gs_mu_list = torch.stack(gs_mu_list, dim=0)  # T,N,3

@@ -1,19 +1,41 @@
+import logging
 from typing import Optional
-import torch
-from torch import nn
-import torch.nn.functional as F
 import numpy as np
-import os, sys, os.path as osp
+from torch import nn
+import torch
 from pytorch3d.transforms import (
-    axis_angle_to_matrix,
     matrix_to_axis_angle,
     matrix_to_quaternion,
     quaternion_to_matrix,
 )
-import logging
+import torch.nn.functional as F
+import jax
+from flax import nnx
 
 
-class MonocularCameras(nn.Module):
+class MonocularCameras(nnx.Module):
+    def __init__(self, din: int, dout: int, *, rngs: nnx.Rngs):
+        self.q_wc = Param(rngs.params.uniform((din, dout)))
+        self.t_wc = nnx.Param(jnp.zeros((dout,)))
+        self._rel_focal = nnx.Param()
+        self.cxcy_ratio = nnx.Param()
+        self.din, self.dout = din, dout
+    
+
+@jax.jit
+def get_optimizable_list(cams:MonocularCameras, lr_q:float=1e-4, lr_t:float=1e-4, lr_f:float=1e-4, lr_c:float=0.0):
+        ret = []
+        if lr_q > 0:
+            ret.append({"params": [cams.q_wc], "lr": lr_q, "name": "R"})
+        if lr_t > 0:
+            ret.append({"params": [cams.t_wc], "lr": lr_t, "name": "t"})
+        if lr_f > 0:
+            ret.append({"params": [cams._rel_focal], "lr": lr_f, "name": "f"})
+        if lr_c > 0:
+            ret.append({"params": [cams.cxcy_ratio], "lr": lr_c, "name": "cxcy"})
+        return ret
+
+class MonocularCameras2(nn.Module):
     def __init__(
         self,
         n_time_steps,
@@ -357,52 +379,3 @@ class MonocularCameras(nn.Module):
         uv = np.stack([u, v], axis=-1)  # H,W,2
         return torch.from_numpy(uv).to(self.rel_focal).to(self.rel_focal.device)
 
-
-def __project__(xyz, cams, th=1e-5):
-    # assert xyz.ndim == 2
-    assert xyz.shape[-1] == 3
-    xy = xyz[..., :2]
-    z = xyz[..., 2:]
-    z_close_mask = abs(z) < th
-    if z_close_mask.any():
-        # logging.warning(
-        #     f"Projection may create singularity with a point too close to the camera, detected [{z_close_mask.sum()}] points, clamp it"
-        # )
-        z_close_mask = z_close_mask.float()
-        z = (
-            z * (1 - z_close_mask) + (1.0 * th) * z_close_mask
-        )  # ! always clamp to positive
-        assert not (abs(z) < th).any()
-    rel_f = torch.as_tensor(cams.rel_focal).to(xyz)
-    cxcy = torch.as_tensor(cams.cxcy_ratio).to(xyz) * 2.0 - 1.0
-    uv = (xy * rel_f[None] / z) + cxcy[None, :]
-    return uv  # [-1,1]
-
-
-def __backproject__(uv, d, cams):
-    # assert uv.ndim == 2
-    # uv: always be [-1,+1] on the short side
-    assert uv.ndim == d.ndim + 1
-    assert uv.shape[-1] == 2
-    dep = d[..., None]
-    rel_f = torch.as_tensor(cams.rel_focal).to(uv)
-    # focal = rel_f / 2.0 * min(H, W)
-    cxcy = torch.as_tensor(cams.cxcy_ratio).to(uv) * 2.0 - 1.0
-    xy = (uv - cxcy[None, :]) * dep / rel_f[None]
-    z = dep
-    xyz = torch.cat([xy, z], dim=-1)
-    return xyz
-
-
-def __get_homo_coordinate_map__(H:int, W:int):
-    # the grid take the short side has (-1,+1)
-    if H > W:
-        u_range = [-1.0, 1.0]
-        v_range = [-float(H) / W, float(H) / W]
-    else:  # H<=W
-        u_range = [-float(W) / H, float(W) / H]
-        v_range = [-1.0, 1.0]
-    # make uv coordinate
-    u, v = np.meshgrid(np.linspace(u_range[0],u_range[1], W), np.linspace(v_range[0],v_range[1], H))
-    uv = np.stack([u, v], axis=-1)  # H,W,2
-    return uv

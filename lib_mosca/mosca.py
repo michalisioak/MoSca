@@ -847,6 +847,46 @@ class MoSca(nn.Module):
         else:
             raise NotImplementedError()
         return loss_p_vel, loss_q_vel, loss_p_acc, loss_q_acc
+    def compute_velocity_acceleration_loss(
+        self, time_indices=None, detach_mask=None, reduce_type="mean", square=False
+    ):
+        if time_indices is None:
+            time_indices = torch.arange(self.total_frames).to(self.device)
+        assert time_indices.max() <= self.total_frames - 1
+        
+        xyz_coordinates = self._node_xyz[time_indices]
+        rotation_world_to_inertial = q2R(self._node_rotation[time_indices])
+        
+        if detach_mask is not None:
+            detach_mask = detach_mask.float()[:, None, None]
+            xyz_coordinates = xyz_coordinates.detach() * detach_mask + xyz_coordinates * (1 - detach_mask)
+            rotation_world_to_inertial = (
+                rotation_world_to_inertial.detach() * detach_mask[..., None]
+                + rotation_world_to_inertial * (1 - detach_mask)[..., None]
+            )
+        
+        xyz_velocity, angular_velocity, xyz_acceleration, angular_acceleration = compute_vel_acc(
+            xyz_coordinates, rotation_world_to_inertial
+        )
+        
+        if square:
+            xyz_velocity, angular_velocity, xyz_acceleration, angular_acceleration = (
+                xyz_velocity**2,
+                angular_velocity**2,
+                xyz_acceleration**2,
+                angular_acceleration**2,
+            )
+        
+        if reduce_type == "mean":
+            loss_position_velocity, loss_orientation_velocity = xyz_velocity.mean(), angular_velocity.mean()
+            loss_position_acceleration, loss_orientation_acceleration = xyz_acceleration.mean(), angular_acceleration.mean()
+        elif reduce_type == "sum":
+            loss_position_velocity, loss_orientation_velocity = xyz_velocity.sum(), angular_velocity.sum()
+            loss_position_acceleration, loss_orientation_acceleration = xyz_acceleration.sum(), angular_acceleration.sum()
+        else:
+            raise NotImplementedError()
+        
+        return loss_position_velocity, loss_orientation_velocity, loss_position_acceleration, loss_orientation_acceleration
 
     def compute_arap_loss(
         self,
@@ -1274,7 +1314,7 @@ def _compute_curve_topo_dist_(
     max_subsample_T=80,
     top_k=8,
     chunk=65536,
-):
+)-> torch.Tensor:
     # * this  function have to handle size N~10k-30k, T<max_subsample_T
     # curve_xyz: T,N,3
 

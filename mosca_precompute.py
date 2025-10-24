@@ -22,6 +22,9 @@ from omegaconf import OmegaConf
 from lib_moca.moca_misc import make_pair_list
 import random
 
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt 
 
 def seed_everything(seed):
     logging.info(f"seed: {seed}")

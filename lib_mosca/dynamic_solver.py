@@ -22,11 +22,13 @@ from scaffold_utils.viz_helper import (
 
 def detect_sharp_changes_in_curve(track_mask, curve, max_vel_th, valid_type="and"):
     assert len(track_mask) >= 2, "too short!"
+    valid = None
     diff = (curve[:-1] - curve[1:]).norm(dim=-1)  # T-1,N
     if valid_type == "and":
         valid = track_mask[:-1] * track_mask[1:]  # both side are valid
     elif valid_type == "or":
         valid = (track_mask[:-1] + track_mask[1:]) > 0  # one is valid
+    assert valid is not None
     to_next_diff = torch.cat([diff, torch.zeros_like(diff[:1])], 0)
     to_prev_diff = torch.cat([torch.zeros_like(diff[:1]), diff], 0)
     to_next_valid = torch.cat([valid, torch.ones_like(valid[:1])], 0)
@@ -364,7 +366,7 @@ def __int2homo_coord__(track_uv, H, W):
 
 
 def __compute_physical_losses__(
-    scf,
+    scf: MoSca,
     temporal_diff_shift: list,
     temporal_diff_weight: list,
     max_time_window: int,
@@ -442,6 +444,7 @@ def geometry_scf_init(
     torch.cuda.empty_cache()
     os.makedirs(viz_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
+    step = None
 
     if square_loss_flag:
         raise RuntimeError(
@@ -679,7 +682,7 @@ def geometry_scf_init(
                 ]
             ):
                 plt.subplot(2, 11, plt_i + 1)
-                plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
+                _ = plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
 
             plt.tight_layout()
             plt.savefig(
@@ -687,7 +690,7 @@ def geometry_scf_init(
             )
             plt.close()
 
-    fig = plt.figure(figsize=(25, 7))
+    plt.figure(figsize=(25, 7))
     for plt_i, plt_pack in enumerate(
         [
             ("loss", loss_list),
@@ -720,7 +723,7 @@ def geometry_scf_init(
         ]
     ):
         plt.subplot(2, 11, plt_i + 1)
-        plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
+        _ = plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
     plt.tight_layout()
     plt.savefig(osp.join(log_dir, f"{prefix}dynamic_scaffold_init.jpg"))
     plt.close()
@@ -773,7 +776,7 @@ def __draw_graph__(t, scf: MoSca, line_N=16, level=-1):
 
 
 @torch.no_grad()
-def __draw_gs_point_line__(start, end, n=32):
+def __draw_gs_point_line__(start:torch.Tensor, end, n=32)-> torch.Tensor:
     # start, end is N,3 tensor
     line_dir = end - start
     xyz = (

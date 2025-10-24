@@ -223,7 +223,7 @@ class DynReconstructionSolver:
     def get_static_model(
         self,
         s2d: Saved2D,
-        cams,
+        cams: MonocularCameras,
         n_init=30000,
         radius_max=0.05,
         max_sph_order=0,

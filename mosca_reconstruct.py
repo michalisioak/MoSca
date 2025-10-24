@@ -39,6 +39,10 @@ from recon_utils import (
     set_epi_mask_to_s2d_for_bg_render,
 )
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt 
+
 
 def get_static_render_error_mask(s2d, log_path, render_error_th, open_ksize=-1):
     assert osp.exists(

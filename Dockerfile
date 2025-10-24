@@ -27,7 +27,7 @@ RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-2024.06-1-Linux-x86
 ENV PATH=$CONDA_DIR/bin:$PATH
 RUN conda init
 
-
+RUN apt-get update && apt-get install -y python3-tk
 # # ===============================
 # # Copy and run bash install script
 # # ===============================

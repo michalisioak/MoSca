@@ -316,7 +316,7 @@ def compute_static_ba(
             ]
         ):
             plt.subplot(1, 9, plt_i + 1)
-            plt.plot(plt_pack[1]), plt.title(
+            _ = plt.plot(plt_pack[1]), plt.title(
                 plt_pack[0] + f" End={plt_pack[1][-1]:.6f}"
             )
             if plt_pack[0].startswith("loss"):
