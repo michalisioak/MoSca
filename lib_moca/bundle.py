@@ -168,7 +168,7 @@ def compute_static_ba(
         point_ref_to_every_frame = (
             torch.einsum("tij,snj->stni", R_cw, point_ref) + t_cw[None, :, None]
         )  # Src,Tgt,N,3
-        uv_src_to_every_frame = cams.project(point_ref_to_every_frame)  # Src,Tgt,N,3
+        uv_src_to_every_frame = cams.project(point_ref_to_every_frame)  # Src,Tgt,N,3 # Mich maybey is it 2?
 
         # * robusitify the loss by down weight some curves
         with torch.no_grad():

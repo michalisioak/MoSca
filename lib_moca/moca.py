@@ -209,7 +209,7 @@ def moca_solve(
             min_valid_num=fov_min_valid_covalid,
         )
         assert len(fov_jump_pair_list) > 0, f"no valid pair for FOV search"
-        logging.info(f"Start analyzing {len(fov_jump_pair_list)} pairs for FOV serach")
+        logging.info(f"Start analyzing {len(fov_jump_pair_list)} pairs for FOV search")
         _, _, inlier_list_jumped = analyze_track_epi(
             fov_jump_pair_list, sta_track, sta_track_mask, H=s2d.H, W=s2d.W
         )

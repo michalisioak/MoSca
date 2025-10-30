@@ -213,7 +213,8 @@ def find_initinsic(
             depth_decay_th=depth_decay_th,
             depth_decay_sigma=depth_decay_sigma,
         )
-        e_list.append(E.item()), fov_list.append(fov)
+        e_list.append(E.item())
+        fov_list.append(fov)
     e_list = np.array(e_list)
     best_ind = e_list.argmin()
     optimial_fov = fov_list[best_ind]
@@ -233,7 +234,8 @@ def find_initinsic(
         plt.plot([optimial_fov], [min(e_list)], "o")
         plt.title(
             f"FOV Linear Search Best={optimial_fov:.3f} with energy {min(e_list):.6f}"
-        ), plt.xlabel("fov"), plt.ylabel("ReprojEnergy")
+        )
+        plt.xlabel("fov"), plt.ylabel("ReprojEnergy")
         plt.tight_layout()
         plt.savefig(viz_fn)
         plt.close()
