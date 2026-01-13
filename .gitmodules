@@ -1,0 +1,3 @@
+[submodule "lib_prior/depth_models/Depth-Anything-3"]
+	path = lib_prior/depth_models/Depth-Anything-3
+	url = https://github.com/ByteDance-Seed/Depth-Anything-3.git
