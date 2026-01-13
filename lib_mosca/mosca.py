@@ -471,7 +471,7 @@ class MoSca(nn.Module):
         if verbose:
             logging.info(f"Topology updated in {time.time()-start_t:.2f}s")
         torch.cuda.empty_cache()
-        return
+        
 
     def update_multilevel_arap_topo(self, verbose=False):
         if not self.mlevel_arap_flag:
@@ -493,7 +493,6 @@ class MoSca(nn.Module):
                     f"MultiRes l={l} {multilevel_arap_topo_w[-1].float().mean() * 100.0:.2f}% valid edges"
                 )
         self.multilevel_arap_topo_w = multilevel_arap_topo_w
-        return
 
     def warp(
         self,

@@ -1,22 +1,16 @@
-import sys, os, os.path as osp
+import sys, os
 import torch_geometric.nn.pool as pyg_pool
 import numpy as np
-import scipy
 import torch
 from torch import nn
 import torch.nn.functional as F
 import logging
-import time
 from matplotlib import pyplot as plt
 from pytorch3d.transforms import (
-    matrix_to_axis_angle,
-    axis_angle_to_matrix,
     quaternion_to_matrix,
     matrix_to_quaternion,
 )
 from pytorch3d.ops import knn_points
-import open3d as o3d
-from tqdm import tqdm
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -147,7 +141,6 @@ class DynSCFGaussian(nn.Module):
         # ! dangerous flags
         # * for viz the cate color
         self.return_cate_colors_flag = False
-
         return
 
     @classmethod
@@ -315,7 +308,7 @@ class DynSCFGaussian(nn.Module):
     #     return self.o_act(self._dynamic_logit)
 
     @property
-    def get_s(self):
+    def get_s(self)-> torch.Tensor:
         return self.s_act(self._scaling)
 
     @property
@@ -904,7 +897,6 @@ class DynSCFGaussian(nn.Module):
         assert self.ref_time.max() < self.T, f"{self.ref_time.max()}, {self.T}"
 
         self.clean_corr_control_record()
-        return
 
     ######################################################################
     # * Gaussian Control

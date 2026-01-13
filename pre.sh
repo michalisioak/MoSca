@@ -1,0 +1,1 @@
+ffmpeg -i ./demo/hand/input.mp4 -vf "scale=iw/4:ih/4" ./demo/hand/images/%04d.jpg

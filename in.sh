@@ -51,6 +51,6 @@ pip install mmcv-full==1.7.2
 
 ################################################################################
 echo "Install JAX for evaluating DyCheck"
-pip install --upgrade "jax[cuda11]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html --dry-run
-# pip install -r jax_requirements.txt --dry-run
+pip install --upgrade "jax[cuda11]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install -r jax_requirements.txt
 ################################################################################

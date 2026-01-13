@@ -134,7 +134,8 @@ class MoCaPrep:
                 ),
                 device,
             )
-            self.flow_model.cpu(), torch.cuda.empty_cache()
+            self.flow_model.cpu()
+            torch.cuda.empty_cache()
             self.flow_process_func = raft_process_folder
         else:  # todo: add GMFlow, recent realtime RAFT
             logging.warning(f"Unknown flow_mode: {flow_mode}, Flow Model not load")
@@ -161,14 +162,16 @@ class MoCaPrep:
             self.depth_model = get_metric3dv2_model(
                 device=device, version=metric3d_depth_version
             )
-            self.depth_model.cpu(), torch.cuda.empty_cache()
+            self.depth_model.cpu()
+            torch.cuda.empty_cache()
             self.depth_process_func = metric3d_process_folder
         elif self.dep_mode == "uni":
             from depth_models.unidepth_wrapper import unidepth_process_folder
             from depth_models.unidepth_wrapper import get_unidepth_model
 
             self.depth_model = get_unidepth_model(device)
-            self.depth_model.cpu(), torch.cuda.empty_cache()
+            self.depth_model.cpu()
+            torch.cuda.empty_cache()
             self.depth_process_func = unidepth_process_folder
         elif self.dep_mode == "depthcrafter":
             from depth_models.depthcrafter_wrapper import depthcrafter_process_folder
@@ -181,6 +184,15 @@ class MoCaPrep:
             logging.warning(
                 f"DepthCrafter is not a metric model, align to metric model"
             )
+        elif self.dep_mode == "depth_anything":
+            from depth_models.depth_anything_wrapper import (
+                depth_anything_proccess_folder,
+            )
+            from depth_models.depth_anything_wrapper import get_depth_anything_model
+
+            self.depth_model = get_depth_anything_model()
+            torch.cuda.empty_cache()
+            self.depth_process_func = depth_anything_proccess_folder
         else:  # todo: add unidepth and maybe zoe depth
             print(
                 f"Unknown dep_mode: {dep_mode}, Depth Model not load, will try to find depth from dir {dep_mode}_depth or {dep_mode}_depth.npz"
@@ -252,15 +264,18 @@ class MoCaPrep:
                 get_cotracker,
             )
 
-            print(
-                f"loading cotracker v={cotrakcer_version} online={cotracker_online_flag}..."
-            )
+            print(f"loading cotracker v={cotrakcer_version} online={cotracker_online_flag}...")
             self.tap = get_cotracker(
                 device,
                 cotrakcer_version=cotrakcer_version,
                 online_flag=cotracker_online_flag,
             )
+            # ADD THESE PARAMETERS TO REDUCE MEMORY USAGE
+            if hasattr(self.tap, 'model'):
+                self.tap.model.grid_size = 6  # Reduce from default
+                self.tap.model.grid_query_frame = 2  # Reduce query frames
             self.cotracker_online_flag = cotracker_online_flag
+            torch.cuda.empty_cache()
             self.tap_process_func = cotracker_process_folder
         elif tap_mode == "bootstapir":
             from tracking.bootstapir_wrapper import (
@@ -495,7 +510,8 @@ class MoCaPrep:
         self.flow_process_func(
             self.flow_model, img_list, fn_list, raft_save_dir, step_list=step_list
         )
-        self.flow_model.to("cpu"), torch.cuda.empty_cache()
+        self.flow_model.to("cpu") 
+        torch.cuda.empty_cache()
         logging.info(f"Flow done in {(time.time()-start_t)/60.0:.2f}min")
 
         logging.info(f"Analysis the Epi Error")
@@ -550,6 +566,7 @@ class MoCaPrep:
             #     "Need to remove the manaully forward, backward inference."
             # )
             logging.warning(f"SHOULD UPGRADE THE FWD BWD INFERENCE")
+            torch.cuda.empty_cache()
             self.tap_process_func(
                 working_dir=ws,
                 img_list=img_list,
@@ -572,14 +589,15 @@ class MoCaPrep:
                 chunk_size=chunk_size,
                 max_viz_cnt=max_viz_cnt,
             )
-        self.tap.cpu(), torch.cuda.empty_cache()
+        self.tap.cpu()
+        torch.cuda.empty_cache()
         logging.info(f"Long-track done in {(time.time()-start_t)/60.0:.2f}min")
         return
 
     def process(
         self,
         t_list,
-        img_list: list,
+        img_list,
         img_name_list: list,
         save_dir: str,
         # proc cfg
@@ -611,7 +629,7 @@ class MoCaPrep:
         # todo: modify the tap interface
 
         ########################################################################
-        img_name_list = [osp.basename(fn) for fn in img_name_list]
+        img_name_list:list[str] = [osp.basename(fn) for fn in img_name_list]
         img_list = np.asarray(img_list)
 
         ########################################################################
@@ -640,7 +658,7 @@ class MoCaPrep:
         )
         ########################################################################
         # # * 3. Flow and Epi error [Opt]
-        if self.flow_mode == "raft" and compute_flow:
+        if self.flow_mode == "raft" and compute_flow and False:
             logging.info(f"Generating Flow and Analysis EPI")
             self.compute_flow(
                 save_dir,
@@ -654,11 +672,14 @@ class MoCaPrep:
         # * 4. Long-track
         if compute_tap:
             dep_name = self.dep_mode + "_depth"
+            print("micdf ",dep_name )
             if osp.exists(osp.join(save_dir, dep_name + "_sharp")):
                 dep_name = dep_name + "_sharp"
                 logging.info(f"TAP will use the sharpened depth {dep_name}")
             dep_list = self.load_dep_list(save_dir, dep_name)
             uniform_sample_list = np.ones_like(dep_list) > 0
+            print("micdf ",dep_list.shape )
+            print("micdf ",uniform_sample_list.shape )
             self.compute_tap(
                 ws=save_dir,
                 save_name=f"uniform_dep={self.dep_mode}",

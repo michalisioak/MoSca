@@ -13,10 +13,10 @@ tap_loading_min_valid_cnt: 4
 depth_boundary_th: 1.0
 
 # ! manually set the GT camera and focal lr to zero
-init_gt_camera: True
-ba_lr_cam_f: 0.0
-ba_lr_dep_c: 0.0
-ba_lr_dep_s: 0.0
+# init_gt_camera: True
+# ba_lr_cam_f: 0.0
+# ba_lr_dep_c: 0.0
+# ba_lr_dep_s: 0.0
 ba_lr_cam_q: 0.0001
 ba_lr_cam_t: 0.0001
 

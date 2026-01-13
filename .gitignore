@@ -1,3 +1,7 @@
+demo/
+viz/
+results/
+lib_moca2/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

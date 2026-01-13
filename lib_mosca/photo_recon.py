@@ -338,7 +338,9 @@ class DynReconstructionSolver:
             )
         # d_model.scf.update_topology()
         d_model.summary()
+        
         return d_model
+        
 
     def photometric_fit(
         self,
@@ -615,7 +617,7 @@ class DynReconstructionSolver:
                     bg_color = np.random.rand(3).tolist()
                 else:
                     bg_color = default_bg_color  # [1.0, 1.0, 1.0]
-                if GS_BACKEND in ["natie_add3"]: # WARNING TYPO
+                if GS_BACKEND in ["native_add3"]: # WARNING TYPO
                     # the render internally has another protection, because if not set, the grad has bug
                     bg_color += [0.0, 0.0, 0.0]
 
@@ -845,6 +847,7 @@ class DynReconstructionSolver:
                 with torch.no_grad():
                     # before the gs control to append full opacity GS
                     random_select_t = np.random.choice(cams.T)
+                    assert d_model != None, "d_model is None"
                     trans_d_gs5 = d_model(random_select_t)
                     logging.info(f"Transfer dynamic to static at step={step}")
 

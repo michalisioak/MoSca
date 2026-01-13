@@ -21,7 +21,6 @@ from pytorch3d.transforms import (
     quaternion_to_matrix,
     matrix_to_quaternion,
 )
-from pytorch3d.ops import knn_points
 
 
 def sph_order2nfeat(order):

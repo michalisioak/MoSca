@@ -36,7 +36,7 @@ import sys, os, os.path as osp
 
 def apply_gs_control(
     render_list,
-    model,
+    model: DynSCFGaussian|StaticGaussian,
     gs_control_cfg,
     step,
     optimizer_gs,
@@ -661,8 +661,8 @@ from lib_render.render_helper import render
 def error_grow_dyn_model(
     s2d,
     cams: MonocularCameras,
-    s_model,
-    d_model,
+    s_model: StaticGaussian,
+    d_model: DynSCFGaussian,
     optimizer_dynamic,
     step,
     dyn_error_grow_th,

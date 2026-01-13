@@ -13,7 +13,6 @@ from pytorch3d.transforms import (
     quaternion_to_matrix,
     quaternion_to_axis_angle,
 )
-from pytorch3d.ops import knn_points
 import logging
 import imageio
 import os, sys, os.path as osp

@@ -4,7 +4,6 @@ import logging
 import numpy as np
 from tqdm import tqdm
 from typing import Literal, Optional, Tuple
-from pytorch3d.ops import knn_points
 
 from lib_moca.camera import MonocularCameras
 from lib_mosca.dynamic_gs import DynSCFGaussian

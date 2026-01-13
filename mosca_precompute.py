@@ -47,6 +47,7 @@ def get_moca_processor(pre_cfg):
             pre_cfg, "tap_mode", "bootstapir"
         ),  # "spatracker", "cotracker"
         flow_mode=getattr(pre_cfg, "flow_mode", "raft"),
+        cotracker_online_flag=getattr(pre_cfg, "cotracker_online_flag", False),
         align_metric_flag=getattr(pre_cfg, "align_metric_flag", True),
     )
     return moca_processor

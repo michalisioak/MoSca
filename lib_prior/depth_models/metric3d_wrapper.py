@@ -1,12 +1,8 @@
 import torch
-from PIL import Image
 import numpy as np
 import os, os.path as osp
 from tqdm import tqdm
 import cv2
-from matplotlib import cm
-import imageio
-from matplotlib import pyplot as plt
 import sys
 
 sys.path.append(osp.abspath(osp.dirname(__file__)))

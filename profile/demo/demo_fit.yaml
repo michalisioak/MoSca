@@ -1,5 +1,8 @@
 exp_name: demo_fit
 mode: wild
+dep_mode: depth_anything
+tap_mode: spatracker
+flow_mode: raft
 
 epi_th: 0.0001
 ba_epi_th: 0.0003
@@ -38,7 +41,7 @@ robust_std_decay_th: 0.2
 robust_std_decay_sigma: 0.2
 
 # * mosca init
-mosca_unit_world: 0.02
+# mosca_unit_world: 0.02
 # mosca_unit_auto_factor: 4.0
 
 mosca_sigma_init_ratio: 2.0
@@ -68,14 +71,14 @@ get_curve_refilter_remove_shaking_curve: True
 
 get_curve_enforce_line_init: True
 geo_mosca_use_mask_topo: True
-geo_mosca_update_all_topo_steps: [1000] #[200, 500, 800]
+geo_mosca_update_all_topo_steps: [200, 500, 800]
 geo_mosca_reline_steps: [1001]
 
 geo_mosca_decay_steps: 2000
 
 geo_mosca_lambda_local_coord: 1.0 #1.0
 geo_mosca_lambda_metric_len: 1.0
-geo_mosca_lambda_xyz_vel: 0.1 #0.3
+geo_mosca_lambda_xyz_vel: 0.3 #0.3
 geo_mosca_lambda_q_vel: 0.05
 geo_mosca_lambda_xyz_acc: 0.1
 geo_mosca_lambda_q_acc: 0.05
@@ -90,10 +93,10 @@ geo_mosca_viz_interval: -1 #1000
 geo_mosca_viz_debug_interval: -1 #500
 
 # * GS init
-gs_static_n_init: 80000 #50000 # 30000
+gs_static_n_init: 100000 #50000 # 30000
 gs_dynamic_n_init: 30000
 gs_radius_max: 0.05
-gs_max_sph_order: 1
+gs_max_sph_order: 2
 gs_radius_init_factor: 1.0
 
 gs_max_node_num: 10000
@@ -106,7 +109,7 @@ gs_dynamic_start_opacity: 0.012 #0.8 #0.009
 gs_static_start_opacity: 0.01 #0.8 #0.01
 gs_include_fg_in_static: True #False
 
-photo_total_steps: 8000
+photo_total_steps: 20000
 photo_skinning_corr_start_steps: 4501
 photo_geo_reg_start_steps: 1000
 # photo_lr_np: 0.0003
@@ -171,13 +174,13 @@ photo_s_ctrl_densify_max_grad: 0.0002
 photo_s_ctrl_prune_opacity_th: 0.02
 photo_s_ctrl_reset_opacity: 0.01
 
-photo_s2d_trans_steps: [] #[3000]
+photo_s2d_trans_steps: [3000]
 photo_dyn_scf_prune_steps: [3500, 4500]
 photo_dyn_scf_prune_sk_th: 0.02
 
-# photo_dyn_error_grow_steps: [4250, 5250]
-# dyn_error_grow_th: 0.3
-# dyn_error_grow_num_frames: 4
+photo_dyn_error_grow_steps: [4250, 5250]
+dyn_error_grow_th: 0.3
+dyn_error_grow_num_frames: 4
 
 photo_dyn_node_densify_steps: [3250]
 photo_dyn_node_densify_grad_th: 0.5
