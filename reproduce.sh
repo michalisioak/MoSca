@@ -38,9 +38,9 @@ done
 echo "GPU $GPU_ID: ${scenes_for_gpu[@]}"
 
 for scene in "${scenes_for_gpu[@]}"; do
-    # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/nvidia/$scene --cfg ./profile/nvidia/nvidia_prep.yaml
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/nvidia/nvidia_fit.yaml
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/nvidia/nvidia_fit_colfree.yaml
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/prep.yaml
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/depth_anything.yaml
+    # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/nvidia/nvidia_fit_colfree.yaml
 done
 ############################################################################################
 

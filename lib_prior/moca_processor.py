@@ -286,6 +286,15 @@ class MoCaPrep:
             print("loading bootstapir...")
             self.tap = get_bootstapir_model(device=device)
             self.tap_process_func = bootstapir_process_folder
+        elif tap_mode == "tapnext":
+            from tracking.tapnext_wrapper import (
+                tapnext_process_folder,
+                get_tapnext_model,
+            )
+
+            print("loading tapnext...")
+            self.tap = get_tapnext_model(device=device)
+            self.tap_process_func = tapnext_process_folder
         else:
             raise NotImplementedError(f"Unknown tap_mode: {tap_mode}")
         self.tap.cpu()
@@ -658,7 +667,7 @@ class MoCaPrep:
         )
         ########################################################################
         # # * 3. Flow and Epi error [Opt]
-        if self.flow_mode == "raft" and compute_flow and False:
+        if self.flow_mode == "raft" and compute_flow and False: # TODO:MIKE
             logging.info(f"Generating Flow and Analysis EPI")
             self.compute_flow(
                 save_dir,
@@ -672,14 +681,11 @@ class MoCaPrep:
         # * 4. Long-track
         if compute_tap:
             dep_name = self.dep_mode + "_depth"
-            print("micdf ",dep_name )
             if osp.exists(osp.join(save_dir, dep_name + "_sharp")):
                 dep_name = dep_name + "_sharp"
                 logging.info(f"TAP will use the sharpened depth {dep_name}")
             dep_list = self.load_dep_list(save_dir, dep_name)
             uniform_sample_list = np.ones_like(dep_list) > 0
-            print("micdf ",dep_list.shape )
-            print("micdf ",uniform_sample_list.shape )
             self.compute_tap(
                 ws=save_dir,
                 save_name=f"uniform_dep={self.dep_mode}",

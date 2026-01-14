@@ -1,5 +1,5 @@
 dep_mode: depth_anything
-tap_mode: spatracker
+tap_mode: bootstapir
 flow_mode: raft
 
 # for dynamic denser TAP resample

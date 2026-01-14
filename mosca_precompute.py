@@ -9,7 +9,6 @@ from lib_prior.preprocessor_utils import load_imgs, convert_from_mp4
 from lib_prior.prior_loading import Saved2D, visualize_track
 from lib_prior.moca_processor import mark_dynamic_region
 
-from lib_render.render_helper import GS_BACKEND
 
 from lib_moca.moca import moca_solve
 from lib_moca.epi_helpers import analyze_track_epi, identify_tracks

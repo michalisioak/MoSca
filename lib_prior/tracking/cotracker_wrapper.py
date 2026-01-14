@@ -175,7 +175,6 @@ def cotracker_process_folder(
 
     np.savez_compressed(
         osp.join(save_dir, f"{save_name}_cotracker_tap.npz"),
-        queries=queries.numpy(),  # useless
         tracks=tracks.numpy(),
         visibility=visibility.numpy(),
         # sub_t_list=sub_t_list.numpy(),
@@ -187,17 +186,22 @@ if __name__ == "__main__":
 
     seed_everything(12345)
 
-    # src = "../../data/iphone_5x_2/spin"
-    # src = "../../data/iphone/spin"
-    src = "../../data/debug/C2_N11_S212_s03_T2_2/"
+    src = "./demo/train"
+    img_dir = osp.join(src, "images")
+    img_fns = sorted(
+        [it for it in os.listdir(img_dir) if it.endswith(".png") or it.endswith(".jpg")]
+    )
+    img_list = [imageio.v2.imread(osp.join(img_dir, it))[..., :3] for it in img_fns]
     model = get_cotracker("cuda", online_flag=True)
     cotracker_process_folder(
         src,
-        model,
-        "cuda",
-        dyn_total_n_pts=1000,
-        sta_total_n_pts=1000,
-        dyn_chunk_n_pts=1000,
-        sta_chunk_n_pts=1000,
+        model=model,
+        img_list=img_list,
+        # dyn_total_n_pts=1000,
+        # sta_total_n_pts=1000,
+        # dyn_chunk_n_pts=1000,
+        # sta_chunk_n_pts=1000,
+        sample_mask_list=None,
+        total_n_pts=100,
     )
     print()

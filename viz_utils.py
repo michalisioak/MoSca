@@ -3,7 +3,6 @@ import torch, numpy as np
 from transforms3d.euler import mat2euler, euler2mat
 from lib_render.gauspl_renderer_native import render_cam_pcl
 from lib_render.sh_utils import RGB2SH, SH2RGB
-from lib_render.render_helper import GS_BACKEND
 from matplotlib import pyplot as plt
 import torch, numpy as np
 from pytorch3d.transforms import (
