@@ -1,3 +1,6 @@
 [submodule "lib_prior/depth_models/Depth-Anything-3"]
 	path = lib_prior/depth_models/Depth-Anything-3
 	url = https://github.com/ByteDance-Seed/Depth-Anything-3.git
+[submodule "lib_prior/tracking/SpaTrackerV2"]
+	path = lib_prior/tracking/SpaTrackerV2
+	url = https://github.com/henry123-boy/SpaTrackerV2.git
