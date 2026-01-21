@@ -258,6 +258,14 @@ class MoCaPrep:
             print("loading spatracker...")
             self.tap = get_spatracker(device, S_lenth=spatracker_S_lenth)
             self.tap_process_func = spatracker_process_folder
+        elif tap_mode == "spatracker2":
+            from lib_prior.tracking.spatracker2_wrapper import (
+                spatracker2_process_folder,
+                get_spatracker2,
+            )
+            print("loading spatracker v2...")
+            self.tap = get_spatracker2(device)
+            self.tap_process_func = spatracker2_process_folder
         elif tap_mode == "cotracker":
             from tracking.cotracker_wrapper import (
                 cotracker_process_folder,
@@ -551,7 +559,7 @@ class MoCaPrep:
         seed_everything(self.seed)
         self.tap.to(self.device)
 
-        if self.tap_mode == "spatracker":
+        if self.tap_mode == "spatracker" or self.tap_mode == "spatracker2":
             # load depth
             logging.warning(f"Warning, for spatracker safty, filter the depth boundary")
             dep_mask, _ = laplacian_filter_depth(

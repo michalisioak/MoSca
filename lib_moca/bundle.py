@@ -4,7 +4,8 @@ import torch, numpy as np
 import os, sys, os.path as osp
 from tqdm import tqdm
 import logging, imageio
-from pytorch3d.ops import knn_points
+# from pytorch3d.ops import knn_points
+from torch_geometric.nn import knn
 from matplotlib import cm
 import cv2
 
@@ -432,21 +433,49 @@ def deform_depth_map(
     return dep_new_map_list
 
 
-def spatial_interpolation(src_xyz, src_buffer, query_xyz, K=16, rbf_sigma_factor=0.333):
-    # src_xyz: M,3 src_buffer: M,C query_xyz: N,3
-    # build RBG on each src and smoothly interpolate the buffer to query
-    # first construct src_xyz nn graph
-    _dist_sq_to_nn, _, _ = knn_points(src_xyz[None], src_xyz[None], K=2)
-    dist_to_nn = torch.sqrt(torch.clamp(_dist_sq_to_nn[0, :, 1:], min=1e-8)).squeeze(-1)
-    rbf_sigma = dist_to_nn * rbf_sigma_factor  # M
-    # find the nearest K neighbors for each query point to the src
-    dist_sq, ind, _ = knn_points(query_xyz[None], src_xyz[None], K=K)
-    dist_sq, ind = dist_sq[0], ind[0]
+# def spatial_interpolation(src_xyz, src_buffer, query_xyz, K=16, rbf_sigma_factor=0.333):
+#     # src_xyz: M,3 src_buffer: M,C query_xyz: N,3
+#     # build RBG on each src and smoothly interpolate the buffer to query
+#     # first construct src_xyz nn graph
+#     _dist_sq_to_nn, _, _ = knn_points(src_xyz[None], src_xyz[None], K=2)
+#     dist_to_nn = torch.sqrt(torch.clamp(_dist_sq_to_nn[0, :, 1:], min=1e-8)).squeeze(-1)
+#     rbf_sigma = dist_to_nn * rbf_sigma_factor  # M
+#     # find the nearest K neighbors for each query point to the src
+#     dist_sq, ind, _ = knn_points(query_xyz[None], src_xyz[None], K=K)
+#     dist_sq, ind = dist_sq[0], ind[0]
 
-    w = torch.exp(-dist_sq / (2.0 * (rbf_sigma[ind] ** 2)))  # N,K
-    w = w / torch.clamp(w.sum(-1, keepdim=True), min=1e-8)
+#     w = torch.exp(-dist_sq / (2.0 * (rbf_sigma[ind] ** 2)))  # N,K
+#     w = w / torch.clamp(w.sum(-1, keepdim=True), min=1e-8)
 
-    value = src_buffer[ind]  # N,K,C
+#     value = src_buffer[ind]  # N,K,C
+#     ret = torch.einsum("nk, nkc->nc", w, value)
+#     return ret
+
+def spatial_interpolation_optimized(
+    src_xyz, src_buffer, query_xyz, K=16, rbf_sigma_factor=0.333
+):
+    M = src_xyz.shape[0]
+    src_indices = knn(src_xyz, src_xyz, k=2, batch_x=None, batch_y=None)
+    row, col = src_indices
+    dist_vec = src_xyz[row] - src_xyz[col]
+    dist_sq_all = torch.sum(dist_vec.pow(2), dim=1)
+    dist_sq_reshaped = dist_sq_all.view(M, 2)
+    dist_sq_nn = dist_sq_reshaped[:, 1]
+    dist_to_nn = torch.sqrt(torch.clamp(dist_sq_nn, min=1e-8))
+    rbf_sigma = dist_to_nn * rbf_sigma_factor  # (M,)
+    query_indices = knn(src_xyz, query_xyz, k=K, batch_x=None, batch_y=None)
+    query_row, src_col = query_indices
+    N = query_xyz.shape[0]
+    ind = src_col.view(N, K)  # (N, K)
+    query_xyz_expanded = query_xyz.unsqueeze(1).expand(-1, K, -1)  # (N, K, 3)
+    src_xyz_neighbors = src_xyz[ind]  # (N, K, 3)
+    dist_sq = torch.sum(
+        (query_xyz_expanded - src_xyz_neighbors).pow(2), dim=2
+    )  # (N, K)
+    rbf_sigma_neighbors = rbf_sigma[ind]  # (N, K)
+    w = torch.exp(-dist_sq / (2.0 * (rbf_sigma_neighbors**2)))  # (N, K)
+    w = w / torch.clamp(w.sum(-1, keepdim=True), min=1e-8)  # Normalize
+    value = src_buffer[ind]  # (N, K, C)
     ret = torch.einsum("nk, nkc->nc", w, value)
     return ret
 

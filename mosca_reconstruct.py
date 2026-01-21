@@ -6,7 +6,7 @@ import logging
 import kornia
 from omegaconf import OmegaConf
 
-from lib_mosca.auto import AutoMoSca
+# from lib_mosca.auto import AutoMoSca
 from lib_prior.prior_loading import Saved2D
 
 from lib_render.render_helper import GS_BACKEND

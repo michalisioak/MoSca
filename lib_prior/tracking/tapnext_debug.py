@@ -10,7 +10,7 @@ from tapnet.tapnext.tapnext_torch_utils import restore_model_from_jax_checkpoint
 import os, os.path as osp
 import imageio
 
-tap_size = 256 * 2
+tap_size = 256
 
 def plot_2d_tracks(
     video,

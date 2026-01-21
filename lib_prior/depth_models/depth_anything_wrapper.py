@@ -10,6 +10,8 @@ sys.path.append(osp.abspath(osp.dirname(__file__)))
 
 import os, os.path as osp
 
+import torch
+
 from depth_anything_3.api import DepthAnything3
 from depth_utils import viz_depth_list, save_depth_list
 
@@ -37,6 +39,7 @@ def depth_anything_proccess_folder(
     dep_list = np.asarray(dep_list)
     save_depth_list(dep_list,fn_list,dst,invalid_mask_list)
     viz_depth_list(dep_list, dst + ".mp4")
+    torch.cuda.empty_cache()
     return
 
 if __name__ == "__main__":

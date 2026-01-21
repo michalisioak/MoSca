@@ -1,5 +1,8 @@
 demo/
 viz/
+lib_mosca_old/
+MoSca/
+SpaTrackerV2/
 results/
 lib_moca2/
 # Byte-compiled / optimized / DLL files

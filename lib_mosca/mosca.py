@@ -20,7 +20,7 @@ from gs_utils.gs_optim_helper import prune_optimizer, cat_tensors_to_optimizer
 
 # DQ_EPS = 0.00001
 DQ_EPS = 0.001
-TOPO_CHUNK_SIZE = 65536 // 2
+TOPO_CHUNK_SIZE = 65536 // 8
 
 
 class MoSca(nn.Module):
@@ -1352,8 +1352,17 @@ def _compute_curve_topo_dist_(
         cur = cur + chunk
     # convert the list to upper and lower triangle
     _d = torch.zeros(N, N).to(xyz)
-    _d[ind_pair[:, 0], ind_pair[:, 1]] = flat_D
-    _d[ind_pair[:, 1], ind_pair[:, 0]] = flat_D
+    print(f"N:{N}")
+    print(f"_d shape:{_d.shape} type:{_d.dtype}")
+    print(f"flat_D shape:{flat_D.shape} type:{flat_D.dtype}")
+    print(f"curve_xyz shape:{curve_xyz.shape} type:{curve_xyz.dtype}")
+    print(f"ind_pair shape:{ind_pair.shape} type:{ind_pair.dtype}")
+    # assert False, _d.shape
+    # _d[ind_pair[:, 0], ind_pair[:, 1]] = flat_D
+    # _d[ind_pair[:, 1], ind_pair[:, 0]] = flat_D
+    _d.index_put_((ind_pair[:, 0], ind_pair[:, 1]), flat_D)
+    _d.index_put_((ind_pair[:, 1], ind_pair[:, 0]), flat_D)
+
     # make distance that is zero to be Huge
     # ! set distance to self as inf as well, outside this will handle skinning to self
     invalid_mask = _d == 0

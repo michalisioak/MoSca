@@ -365,6 +365,7 @@ def viz_single_2d_flow_video(
                 flow_sph = torch.cat([flow_sph, line_sph], dim=0)
                 last_flow_mu = new_xyz
                 last_flow_sph = new_flow_sph
+                assert len(flow_mu) == len(flow_o)
             flow_mu = torch.cat([flow_mu, new_xyz], dim=0)
             new_fr = (
                 torch.eye(3)
@@ -380,7 +381,7 @@ def viz_single_2d_flow_video(
                 ],
                 dim=0,
             )
-            flow_o = torch.cat([flow_o, torch.ones_like(flow_s[:, :1]) * 0.99], dim=0)
+            flow_o = torch.cat([flow_o, torch.ones_like(new_xyz[:, :1]) * 0.99], dim=0)
             flow_sph = torch.cat([flow_sph, new_flow_sph], dim=0)
         if len(flow_mu) > max_buffer_size:
             flow_mu = flow_mu[-max_buffer_size:]

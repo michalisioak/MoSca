@@ -1,11 +1,10 @@
 import torch
-import os, os.path as osp
+import os.path as osp
 import logging
 import numpy as np
 from lib_moca.camera import MonocularCameras
 from lib_mosca.dynamic_gs import DynSCFGaussian
 from lib_mosca.static_gs import StaticGaussian
-import imageio
 from omegaconf import OmegaConf
 from viz_utils import *
 from lib_render.render_helper import GS_BACKEND
@@ -267,20 +266,28 @@ def viz_main(
 
 if __name__ == "__main__":
 
-    import argparse
+    # import argparse
 
-    args = argparse.ArgumentParser()
-    args.add_argument("--cfg", "-c", type=str, required=True)
-    args.add_argument("--logdir", "-r", type=str, required=True)
-    args.add_argument("--savedir", "-s", type=str, required=True)
-    args.add_argument("--N", "-n", type=int, default=1)
-    args.add_argument("--move_angle_deg", "-m", type=float, default=10.0)
-    args = args.parse_args()
+    # args = argparse.ArgumentParser()
+    # args.add_argument("--cfg", "-c", type=str, required=True)
+    # args.add_argument("--logdir", "-r", type=str, required=True)
+    # args.add_argument("--savedir", "-s", type=str, required=True)
+    # args.add_argument("--N", "-n", type=int, default=1)
+    # args.add_argument("--move_angle_deg", "-m", type=float, default=10.0)
+    # args = args.parse_args()
+
+    # viz_main(
+    #     args.savedir,
+    #     args.logdir,
+    #     args.cfg,
+    #     N=args.N,
+    #     move_angle_deg=args.move_angle_deg,
+    # )
 
     viz_main(
-        args.savedir,
-        args.logdir,
-        args.cfg,
-        N=args.N,
-        move_angle_deg=args.move_angle_deg,
+        "./gsplat_test",
+        "/MoSca/demo/train/logs/demo_fit_native_add3_20251103_141533",
+        "/MoSca/profile/demo/demo_fit.yaml",
+        N=1,
+        move_angle_deg=10,
     )

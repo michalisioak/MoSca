@@ -1,7 +1,7 @@
-exp_name: depth_anything_fit
+exp_name: depth_anything_fit_big
 dep_mode: depth_anything
 depth_dirname: depth_anything_depth
-tap_mode: cotracker
+tap_mode: depth_anything_bootstapir
 mode: nvidia
 
 epi_th: 0.001
@@ -10,7 +10,7 @@ scf_geo_keyframe_rate: 1
 dep_median: -1.0 # don't normalize for now
 iso_focal: True # ! for nvidia, use fx=fy
 
-tap_loading_min_valid_cnt: 1
+tap_loading_min_valid_cnt: 2
 
 depth_boundary_th: 0.3
 
