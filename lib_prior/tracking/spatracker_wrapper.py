@@ -319,7 +319,6 @@ def spatracker_process_folder(
 
     np.savez_compressed(
         osp.join(save_dir, f"{save_name}_spatracker_tap.npz"),
-        queries=queries.numpy(),  # useless
         tracks=tracks.numpy(),
         visibility=visibility.numpy(),
         K=K,  # also save intrinsic for later use if necessary, but seems because the depth is aligned to input depth, so it is not necessary

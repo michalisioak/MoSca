@@ -857,6 +857,8 @@ def viz_list_of_colored_points_in_cam_frame(
         o = torch.ones(len(mu_w), 1).to(device)
         sph = RGB2SH(rgb.reshape(-1, 3).float().to(device))
 
+        
+
         render_dict = render_cam_pcl(
             mu,
             fr,

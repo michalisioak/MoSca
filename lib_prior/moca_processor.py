@@ -258,7 +258,7 @@ class MoCaPrep:
             print("loading spatracker...")
             self.tap = get_spatracker(device, S_lenth=spatracker_S_lenth)
             self.tap_process_func = spatracker_process_folder
-        elif tap_mode == "spatracker2":
+        elif "spatracker2" in tap_mode:
             from lib_prior.tracking.spatracker2_wrapper import (
                 spatracker2_process_folder,
                 get_spatracker2,
@@ -559,7 +559,7 @@ class MoCaPrep:
         seed_everything(self.seed)
         self.tap.to(self.device)
 
-        if self.tap_mode == "spatracker" or self.tap_mode == "spatracker2":
+        if   "spatracker" in self.tap_mode:
             # load depth
             logging.warning(f"Warning, for spatracker safty, filter the depth boundary")
             dep_mask, _ = laplacian_filter_depth(
@@ -654,25 +654,26 @@ class MoCaPrep:
         self.create_workspace(save_dir, t_list, img_name_list, img_list)
         # ########################################################################
         # * 2. Depth
-        self.compute_depth(
-            save_dir,
-            img_name_list,
-            img_list,
-            K=known_camera_K,
-            depthcrafter_denoising_steps=depthcrafter_denoising_steps,
-            # * boundary enhancement
-            enhance_depth_boudary_th=boundary_enhance_th,
-            enhance_depth_boudary_ksize=boundary_enhance_ksize,
-            enhance_depth_boudary_open_ksize=boundary_enhance_open_ksize,
-            # * metric alignment (not used, because we won't use bias correction)
-            metric_alignment_frames=metric_alignment_frames,
-            metric_alignment_min_dep=metric_alignment_min_dep,
-            metric_alignment_max_dep=metric_alignment_max_dep,
-            metric_alignment_first_quantil=metric_alignment_first_quantil,
-            metric_alignment_bias_flag=metric_alignment_bias_flag,
-            metric_alignment_kernel=metric_alignment_kernel,
-            metric_alignment_fscale=metric_alignment_fscale,
-        )
+        if False:
+            self.compute_depth(
+                save_dir,
+                img_name_list,
+                img_list,
+                K=known_camera_K,
+                depthcrafter_denoising_steps=depthcrafter_denoising_steps,
+                # * boundary enhancement
+                enhance_depth_boudary_th=boundary_enhance_th,
+                enhance_depth_boudary_ksize=boundary_enhance_ksize,
+                enhance_depth_boudary_open_ksize=boundary_enhance_open_ksize,
+                # * metric alignment (not used, because we won't use bias correction)
+                metric_alignment_frames=metric_alignment_frames,
+                metric_alignment_min_dep=metric_alignment_min_dep,
+                metric_alignment_max_dep=metric_alignment_max_dep,
+                metric_alignment_first_quantil=metric_alignment_first_quantil,
+                metric_alignment_bias_flag=metric_alignment_bias_flag,
+                metric_alignment_kernel=metric_alignment_kernel,
+                metric_alignment_fscale=metric_alignment_fscale,
+            )
         ########################################################################
         # # * 3. Flow and Epi error [Opt]
         if self.flow_mode == "raft" and compute_flow and False: # TODO:MIKE

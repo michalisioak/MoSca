@@ -293,7 +293,8 @@ class Saved2D(nn.Module):
     def load_track(self, track_npz_key="spatracker", min_valid_cnt=4):
         assert hasattr(self, "dep_mask"), "Load DEP before TAP!"
         # * load from saved files
-        long_track_fns = glob(osp.join(self.ws, f"*{track_npz_key}*.npz"))
+        fn = osp.join(self.ws, f"*{track_npz_key}*.npz")
+        long_track_fns = glob(fn)
         logging.info(f"Loading TAP from {long_track_fns}...")
         assert len(long_track_fns) > 0, "no TAP found!"
         track, track_mask = [], []

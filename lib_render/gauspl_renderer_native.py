@@ -137,6 +137,10 @@ def render_cam_pcl(
         dir_local, dim=-1
     )  # If frame is not SO(3) but Affinity, have to normalize
     N = len(color_feat)
+    # Add debug prints before line 140 in gauspl_renderer_native.py
+    print(f"color_feat shape: {color_feat.shape}")
+    print(f"color_feat num elements: {color_feat.numel()}")
+    print(f"N: {N}")
     shs_view = color_feat.reshape(N, -1, 3)  # N, Deg, Channels
     _deg = shs_view.shape[1]
     if _deg == 1:

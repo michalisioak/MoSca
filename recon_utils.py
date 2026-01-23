@@ -96,6 +96,9 @@ def auto_get_depth_dir_tap_mode(ws, fit_cfg):
 def viz_mosca_curves_before_optim(curve_xyz, curve_rgb, curve_mask, cams, viz_dir):
     # * viz
     os.makedirs(viz_dir, exist_ok=True)
+    # In viz_mosca_curves_before_optim (recon_utils.py line 99)
+    print(f"curve_xyz shape: {curve_xyz.shape if hasattr(curve_xyz, 'shape') else 'No shape'}")
+    print(f"curve_mask shape: {curve_mask.shape if hasattr(curve_mask, 'shape') else 'No shape'}")
     viz_list = viz_list_of_colored_points_in_cam_frame(
         [
             cams.trans_pts_to_cam(cams.T // 2, it).cpu()

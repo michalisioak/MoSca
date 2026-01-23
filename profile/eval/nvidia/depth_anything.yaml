@@ -1,7 +1,7 @@
-exp_name: depth_anything_fit_big
+exp_name: depth_anything_spatracker2
 dep_mode: depth_anything
 depth_dirname: depth_anything_depth
-tap_mode: depth_anything_bootstapir
+tap_mode: depth_anything_spatracker2
 mode: nvidia
 
 epi_th: 0.001
