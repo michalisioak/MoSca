@@ -5,12 +5,15 @@ tap_mode: depth_anything_spatracker2
 mode: nvidia
 
 epi_th: 0.001
-dyn_id_cnt: 2 # ! critical
+dyn_id_cnt: 0 # ! critical
 scf_geo_keyframe_rate: 1
 dep_median: -1.0 # don't normalize for now
 iso_focal: True # ! for nvidia, use fx=fy
 
-tap_loading_min_valid_cnt: 2
+tap_loading_min_valid_cnt: 0
+get_curve_refilter_shaking_th_world: 5.0
+get_curve_refilter_spatracker_consistency_th_world: 5.0
+get_curve_refilter_remove_shaking_curve: False
 
 depth_boundary_th: 0.3
 
@@ -49,7 +52,6 @@ mosca_resample_flag: True # False
 geo_temporal_diff_shift: [2, 4]
 geo_temporal_diff_weight: [0.6, 0.4]
 
-get_curve_refilter_shaking_th_world: 1.0
 
 geo_mosca_steps: 1500
 geo_mosca_lr_q: 0.03

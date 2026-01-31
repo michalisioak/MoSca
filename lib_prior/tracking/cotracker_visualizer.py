@@ -172,7 +172,7 @@ class Visualizer:
         B, T, C, H, W = video.shape
         _, _, N, D = tracks.shape
 
-        assert D == 2
+        assert D == 2, f"D was {D}"
         assert C == 3
         video = video[0].permute(0, 2, 3, 1).byte().detach().cpu().numpy()  # S, H, W, C
         tracks = tracks[0].long().detach().cpu().numpy()  # S, N, 2

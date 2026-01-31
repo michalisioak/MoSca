@@ -1,53 +1,56 @@
 # get command line input args: GPU ID and scene name1 scene name 2.
 GPU_ID=${1:-0}
 TOTAL_NUM_GPUS=${2:-1}
+GPU_ID=1
+TOTAL_NUM_GPUS=1
 which python
-set -e
+# set -e
 
 ###########################################################################################
 # * DYCHECK
 ###########################################################################################
-# scene_names=(
-#     spin teddy wheel apple block paper-windmill space-out
-# )
-# num_scenes=${#scene_names[@]}
-# scenes_per_gpu=$(((num_scenes + TOTAL_NUM_GPUS - 1) / TOTAL_NUM_GPUS))
-# scenes_for_gpu=()
-# for ((i = GPU_ID; i < num_scenes; i += TOTAL_NUM_GPUS)); do
-#     scenes_for_gpu+=("${scene_names[i]}")
-# done
-# echo "GPU $GPU_ID: ${scenes_for_gpu[@]}"
-
-# for scene in "${scenes_for_gpu[@]}"; do
-#     # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/depth_anything_prep.yaml
-
-#     CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/metric3d.yaml
-#     CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/depth_anything.yaml
-# done
-###########################################################################################
-
-############################################################################################
-# * NVIDIA
-############################################################################################
-scene_names=(Jumping Skating Truck Umbrella Balloon1 Balloon2 Playground)
-# scene_names=(Umbrella Balloon2 Playground)
-scene_names=(Jumping Skating)
+scene_names=(
+    spin teddy wheel apple block paper-windmill space-out
+)
 num_scenes=${#scene_names[@]}
 scenes_per_gpu=$(((num_scenes + TOTAL_NUM_GPUS - 1) / TOTAL_NUM_GPUS))
 scenes_for_gpu=()
 for ((i = GPU_ID; i < num_scenes; i += TOTAL_NUM_GPUS)); do
     scenes_for_gpu+=("${scene_names[i]}")
 done
-echo "GPU $GPU_ID: ${scenes_for_gpu[@]}"
+echo "GPU $GPU_ID: ${scene_names[@]}"
 
-for scene in "${scenes_for_gpu[@]}"; do
-    # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/da_prep.yaml
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/metric3d_prep.yaml
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/metric3d.yaml
-    # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/depth_anything.yaml
-    
-    # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/nvidia/nvidia_fit_colfree.yaml
+for scene in "${scene_names[@]}"; do
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/metric3d_prep.yaml  
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/depth_anything_prep.yaml
+    # CUDA_VISIBLE_DEVICES=1 python spatracker2_wrapper.py --ws /MoSca/data/iphone/$scene --cfg /MoSca/profile/eval/iphone/metric3d_prep.yaml  
+
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/metric3d.yaml
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/depth_anything.yaml
 done
+###########################################################################################
+
+############################################################################################
+# * NVIDIA
+############################################################################################
+# scene_names=(Jumping Skating Truck Umbrella Balloon1 Balloon2 Playground)
+# scene_names=(Jumping Truck)
+# num_scenes=${#scene_names[@]}
+# scenes_per_gpu=$(((num_scenes + TOTAL_NUM_GPUS - 1) / TOTAL_NUM_GPUS))
+# scenes_for_gpu=()
+# for ((i = GPU_ID; i < num_scenes; i += TOTAL_NUM_GPUS)); do
+#     scenes_for_gpu+=("${scene_names[i]}")
+# done
+# echo "GPU $GPU_ID: ${scene_names[@]}"
+
+# for scene in "${scene_names[@]}"; do
+#     CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/da_prep.yaml
+#     CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/metric3d_prep.yaml
+#     CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/metric3d.yaml
+#     CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/eval/nvidia/depth_anything.yaml
+    
+#     # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/nvidia/$scene --cfg ./profile/nvidia/nvidia_fit_colfree.yaml
+# done
 ############################################################################################
 
 # ############################################################################################

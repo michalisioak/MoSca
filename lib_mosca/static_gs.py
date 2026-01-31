@@ -111,6 +111,7 @@ class StaticGaussian(nn.Module):
             f"Resume: Max scale: {model.max_scale}, Min scale: {model.min_scale}, Max sph order: {model.max_sph_order}"
         )
         model._init_act(model.max_scale, model.min_scale)
+        model.to(device)
         return model
 
     def summary(self):
