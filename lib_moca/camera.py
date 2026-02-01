@@ -4,8 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 import os, sys, os.path as osp
-from pytorch3d.transforms import (
-    axis_angle_to_matrix,
+from utils3d.torch import (
     matrix_to_axis_angle,
     matrix_to_quaternion,
     quaternion_to_matrix,

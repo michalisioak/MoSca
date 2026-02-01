@@ -6,7 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 import logging
 from matplotlib import pyplot as plt
-from pytorch3d.transforms import (
+from utils3d.torch import (
     quaternion_to_matrix,
     matrix_to_quaternion,
 )
@@ -79,6 +79,8 @@ class DynSCFGaussian(nn.Module):
 
         self.fast_inference_flag = False
         self.min_num_gs = min_num_gs
+
+        nn.Buffer()
 
         self.register_buffer("nn_fusion", torch.tensor(nn_fusion))
         logging.info(f"ED Model use default {nn_fusion} nearest frame fusion")

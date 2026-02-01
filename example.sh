@@ -2,7 +2,7 @@ GPU_ID=0
 export MPLBACKEND=Agg
 
 CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --cfg ./profile/demo/demo_prep.yaml --ws ./demo/duck --tap_mode=bootstapir --dep_mode=uni
-CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --cfg ./profile/demo/demo_fit.yaml --ws ./demo/train
+CUDA_VISIBLE_DEVICES=1 python mosca_reconstruct.py --cfg ./profile/demo/demo_fit.yaml --ws ./demo/train
 
 # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --cfg ./profile/demo/demo_prep.yaml --ws ./demo/shiba --tap_mode=bootstapir --boundary_enhance_th=-1.0
 # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --cfg ./profile/demo/demo_fit.yaml --ws ./demo/shiba

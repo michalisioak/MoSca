@@ -4,12 +4,10 @@
 from typing import List, Optional
 from matplotlib import pyplot as plt
 import torch, numpy as np
-from pytorch3d.transforms import (
-    axis_angle_to_matrix,
-    matrix_to_axis_angle,
+from utils3d.torch import (
+
     matrix_to_quaternion,
-    quaternion_to_matrix,
-    quaternion_to_axis_angle,
+
 )
 import os, sys, os.path as osp
 import torch.nn.functional as F
@@ -45,6 +43,15 @@ def apply_gs_control(
     record_flag=True,
 ):
     for render_dict in render_list:
+        print(render_dict.keys())
+        for key in render_dict:
+            value = render_dict[key]
+            print(f"{key}: {value.shape}")
+        assert render_dict["viewspace_points"] is not None
+        print(f"viewspace_points type: {type(render_dict['viewspace_points'])}")
+        print(f"viewspace_points requires_grad: {render_dict['viewspace_points'].requires_grad}")
+        print(f"viewspace_points grad: {render_dict['viewspace_points'].grad}")
+        print(f"viewspace_points is leaf: {render_dict['viewspace_points'].is_leaf}")
         if first_N is not None:
             assert last_N is None
             grad = render_dict["viewspace_points"].grad[:first_N]

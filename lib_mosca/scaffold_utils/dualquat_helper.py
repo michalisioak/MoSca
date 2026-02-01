@@ -2,15 +2,24 @@
 import torch
 import numpy as np
 from torch.nn import functional as F
-from pytorch3d.transforms import (
-    # quaternion_multiply, # ! for unknown reason, the pt3d multiplication will get the results wrong with a negative sign!!! use our own implementation
-    quaternion_invert,  # the conjugate of a unit quaternion is its inverse
-    quaternion_to_matrix,
-    matrix_to_quaternion,
-    axis_angle_to_matrix,
-    matrix_to_axis_angle,
-)
+from utils3d.torch import matrix_to_quaternion,axis_angle_to_matrix,quaternion_to_matrix
 import logging
+
+def quaternion_invert(quaternion: torch.Tensor) -> torch.Tensor:
+    """
+    Given a quaternion representing rotation, get the quaternion representing
+    its inverse.
+
+    Args:
+        quaternion: Quaternions as tensor of shape (..., 4), with real part
+            first, which must be versors (unit quaternions).
+
+    Returns:
+        The inverse, a tensor of quaternions of shape (..., 4).
+    """
+
+    scaling = torch.tensor([1, -1, -1, -1], device=quaternion.device)
+    return quaternion * scaling
 
 
 def quaternion_multiply(p, q):

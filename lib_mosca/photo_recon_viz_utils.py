@@ -1,6 +1,6 @@
 from matplotlib import pyplot as plt
 import torch, numpy as np
-from pytorch3d.transforms import quaternion_to_matrix
+from utils3d.torch import quaternion_to_matrix
 
 import logging
 import imageio

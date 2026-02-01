@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from scaffold_utils.dualquat_helper import Rt2dq, dq2unitdq, dq2Rt
-from pytorch3d.transforms import (
+from utils3d.torch import (
     matrix_to_axis_angle,
     quaternion_to_matrix,
     matrix_to_quaternion,

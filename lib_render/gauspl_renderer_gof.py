@@ -169,7 +169,7 @@ def render_cam_pcl(
     # colors_precomp = color_feat
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
-    from pytorch3d.transforms import matrix_to_quaternion
+    from utils3d.torch import matrix_to_quaternion
 
     start_time = time.time()
     render_image_buffer, radii = rasterizer(

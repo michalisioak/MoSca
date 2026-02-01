@@ -31,7 +31,7 @@ mosca_mlevel_w_list: [0.4, 0.3, 0.3]
 geo_temporal_diff_shift: [2, 8, 16] # ! this may be different to the photo one because the kye frame resample
 geo_temporal_diff_weight: [0.6, 0.4, 0.3]
 
-geo_mosca_steps: 1500
+geo_mosca_steps: 1
 geo_mosca_lr_q: 0.03
 geo_mosca_lr_p: 0.03
 # debug

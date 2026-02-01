@@ -162,7 +162,7 @@ def render_new(
         o = torch.ones_like(o) * opa_replace
     s = s * scale_factor
 
-    from pytorch3d.transforms import matrix_to_quaternion
+    from utils3d.torch import matrix_to_quaternion
     quats = matrix_to_quaternion(fr)  # shape [N, 4]
 
     viewmats = T_cw.unsqueeze(0)  # add batch dimension [1, 4, 4]
@@ -184,6 +184,10 @@ def render_new(
         active_sph_order = 3
     else:
         raise ValueError(f"Unexpected SH degree: {_deg}")
+    
+    R_cw = T_cw[:3, :3]
+    t_cw = T_cw[:3, 3]
+    mu_cam = torch.einsum("ij,nj->ni", R_cw, mu) + t_cw[None]
     shs_view=shs_view.permute(0, 1, 2)
     rendered_image, rendered_alpha, aux_dict = rasterization(
         means=mu,  # World coordinates
@@ -204,18 +208,10 @@ def render_new(
         rasterize_mode='classic',
         packed=False,
         
+        
     )
 
-    screenspace_points = (
-        torch.zeros_like(mu, dtype=mu.dtype, requires_grad=True, device=mu.device)
-        + 0
-    )
-    try:
-        screenspace_points.retain_grad()
-    except:
-        pass
-
-    assert screenspace_points is not None
+    
     
     render_dict = {
         'alpha': rendered_alpha.squeeze(0),
@@ -224,10 +220,10 @@ def render_new(
         "alpha": rendered_alpha[0].permute(2,0,1),
         "visibility_filter": (aux_dict["radii"] > 0).all(-1).any(0),
         "radii": torch.sqrt(aux_dict["radii"][0][:, 0] * aux_dict["radii"][0][:, 1]),
-        "viewspace_points": screenspace_points,
+        "viewspace_points": mu_cam,
     }
 
-    print(aux_dict.keys())
+    # print(aux_dict.keys())
 
     assert render_dict["viewspace_points"] is not None
 

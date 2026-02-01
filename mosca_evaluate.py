@@ -16,7 +16,7 @@ from eval_utils.eval_tum_cam import eval_metrics as eval_tum_campose
 from eval_utils.eval_tum_cam import c2w_to_tumpose, load_traj as load_tum_traj
 
 from eval_utils.campose_alignment import align_ate_c2b_use_a2b
-from pytorch3d.transforms import quaternion_to_matrix, matrix_to_quaternion
+from utils3d.torch import quaternion_to_matrix, matrix_to_quaternion
 
 import imageio
 from omegaconf import OmegaConf

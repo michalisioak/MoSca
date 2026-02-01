@@ -2,39 +2,25 @@ import torch
 import imageio
 import os, os.path as osp
 import numpy as np
-import sys
 
 from lib_prior.moca_processor import MoCaPrep
-from lib_prior.preprocessor_utils import load_imgs, convert_from_mp4
-from lib_prior.prior_loading import Saved2D, visualize_track
+from lib_prior.prior_loading import Saved2D
 from lib_prior.moca_processor import mark_dynamic_region
 
 
-from lib_moca.moca import moca_solve
 from lib_moca.epi_helpers import analyze_track_epi, identify_tracks
-from lib_moca.camera import MonocularCameras
 
-from viz_utils import viz_list_of_colored_points_in_cam_frame
+
 import logging
 from lib_prior.moca_processor import *
 from omegaconf import OmegaConf
 from lib_moca.moca_misc import make_pair_list
-import random
 
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt 
 
-def seed_everything(seed):
-    logging.info(f"seed: {seed}")
-    print(f"seed: {seed}")
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    np.random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    logging.info(f"seed: {seed}")
-    print(f"seed: {seed}")
+# class PrecomputeConfig:
+#     spatracker2: 
+
+
 
 
 def get_moca_processor(pre_cfg):
@@ -60,10 +46,6 @@ def load_imgs_from_dir(src):
     img_list = [imageio.imread(osp.join(img_dir, it))[..., :3] for it in img_fns]
     return img_list, img_fns
 
-
-def load_imgs_from_mp4():
-    raise RuntimeError("Not implemented yet")
-    return
 
 
 def preprocess(

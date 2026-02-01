@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from gs_utils.gs_optim_helper import *
 import logging
 
-from pytorch3d.transforms import (
+from utils3d.torch import (
     matrix_to_axis_angle,
     axis_angle_to_matrix,
     quaternion_to_matrix,
