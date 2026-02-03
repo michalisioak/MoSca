@@ -24,11 +24,11 @@ class StaticScene(nn.Module):
         self.means = nn.Parameter(means)
         self.scales = nn.Parameter(scales)
         self.opacities = nn.Parameter(
-                    torch.ones(means.shape[0]) if opacities is None else opacities
-                )
+            torch.ones(means.shape[0]) if opacities is None else opacities
+        )
         self.quats = nn.Parameter(
-                    torch.ones((means.shape[0], 4)) if quats is None else quats
-                )
+            torch.ones((means.shape[0], 4)) if quats is None else quats
+        )
         optimizer_class = cfg.get_optimizer()
         self.optimizers: Dict[str, torch.optim.Optimizer] = {
             "means": optimizer_class(
@@ -109,9 +109,6 @@ class StaticScene(nn.Module):
             active_sph_order = self.max_sph_order
         else:
             assert active_sph_order <= self.max_sph_order
-        frame = self.get_R
-        s = self.get_s
-        o = self.get_o
 
         sph_dim = 3 * sph_order2nfeat(active_sph_order)
         sph = self.get_c
@@ -123,7 +120,7 @@ class StaticScene(nn.Module):
             sph = torch.zeros_like(sph)
             sph[..., :3] = cate_sph  # zero pad
 
-        return self.xyz, frame, s, o, sph
+        return self.means, self.quats, self.scales, self.opacities, sph
 
     ######################################################################
     # * Gaussian Control

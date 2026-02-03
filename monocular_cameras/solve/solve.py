@@ -5,71 +5,23 @@ import numpy as np
 import logging
 
 from epi_helpers import analyze_track_epi, identify_tracks
-from intrinsic_helpers import find_initinsic
+from .fov_search import find_initinsic, FovSearchConfig
 from intrinsic_helpers import compute_graph_energy, track2undistroed_homo
-from camera import MonocularCameras
+from monocular_cameras.cameras import MonocularCameras
 from bundle import (
     query_buffers_by_track,
     prepare_track_homo_dep_rgb_buffers,
 )
-from moca_misc import make_pair_list, Rt2T, configure_logging, get_all_world_pts_list
+from moca_misc import make_pair_list, Rt2T, get_all_world_pts_list
 
 from prior.loading import Saved2D
 
 from .bundle_adjastment import StaticBundleAdjastmentConfig, compute_static_ba
 
 
-@torch.no_grad()
-def rescale_camera_pose(
-    s2d, cams, s_track, s_track_mask, robust_alignment_jitter_th_ratio=2.0
-):
-    device = s2d.dep.device
-    homo_list, dep_list, rgb_list = prepare_track_homo_dep_rgb_buffers(
-        s2d, s_track[..., :2], s_track_mask, torch.arange(s2d.T).to(device)
-    )
-    # ! this jitter removal is super important for robustly scale the Nvidia camera back to a correct scale!!
-    # mask out large depth jitter
-    neighbor_frame_mask = s_track_mask[1:] * s_track_mask[:-1]
-    depth_diff = abs(dep_list[1:] - dep_list[:-1])
-    large_depth_jitter_th = depth_diff[neighbor_frame_mask].median()
-    jitter_mask = (
-        depth_diff > large_depth_jitter_th * robust_alignment_jitter_th_ratio
-    ) * neighbor_frame_mask
-    logging.info(
-        f"When solving optimal cam scale, ignore {jitter_mask.sum() / neighbor_frame_mask.sum() * 100.0:.2f}% potential jitters"
-    )
-    neighbor_frame_mask = neighbor_frame_mask * (~jitter_mask)
-
-    T, M = homo_list.shape[:2]
-    point_cam = cams.backproject(homo_list.reshape(-1, 2), dep_list.reshape(-1))
-    point_cam = point_cam.reshape(T, M, 3)
-    R_wc, t_wc = cams.Rt_wc_list()
-    point_ref_rot = torch.einsum("tij,tmj->tmi", R_wc, point_cam)
-    point_ref = point_ref_rot + t_wc[:, None]
-    # the optimal scale has a closed form solution from a quadratic form
-
-    # we only consider the neighboring two frames for now!
-    a = point_ref_rot[1:] - point_ref_rot[:-1]
-    b = (t_wc[1:] - t_wc[:-1])[:, None].expand(-1, M, -1)
-    a, b = a[neighbor_frame_mask], b[neighbor_frame_mask]
-    # should be masked
-    s_optimal = float(-(a * b).sum() / (b * b).sum())
-    # avoid singular case
-    if s_optimal < 0.00001:
-        logging.warning(
-            f"optimal rescaling of gt camera translation degenerate to {s_optimal}, use 1.0 instead!"
-        )
-        s_optimal = 1.0
-    logging.info(
-        f"Rescale the GT camera pose ot our depth scale (median=1) with a global scale factor {s_optimal} by closed form solution"
-    )
-    cams.t_wc.data = cams.t_wc.data * s_optimal
-    return cams
-
-
 @dataclass
 class MoCaConfig:
-    epi_th = (EPI_TH,)
+    epi_th = EPI_TH
     ba_total_steps: int = 2000
     ba_switch_to_ind_step = 500
     ba_depth_correction_after_step = 500
@@ -79,22 +31,17 @@ class MoCaConfig:
     robust_depth_decay_sigma = 1.0
     robust_std_decay_th = 0.2
     robust_std_decay_sigma = 0.2
-    #
     gt_cam: bool = False
     iso_focal = False
     rescale_gt_cam_transl = False
     bundle_adjastment: StaticBundleAdjastmentConfig = field(
         default_factory=StaticBundleAdjastmentConfig
     )
-    #
     depth_filter_th: float | None = None
     init_cam_with_optimal_fov_results = True
-    # fov
-    fov_search_fallback = 53.0
-    fov_search_N = 100
-    fov_search_start = 30.0
-    fov_search_end = 90.0
     viz_valid_ba_points = False
+    iso_focal: bool = False
+    fov: FovSearchConfig = field(default_factory=FovSearchConfig)
 
 
 def moca_solve(
@@ -184,89 +131,69 @@ def moca_solve(
         sta_track_mask = sta_track_mask[:, filter_mask]
         sta_track_dep = sta_track_dep[:, filter_mask]
 
-    if gt_cam is None:
-        # * 2. compute also for later fov inlier mask
-        # rerun the epi analysis for later FOV init, with the pairs that count the static common visible mask
-        fov_jump_pair_list = make_pair_list(
-            T,
-            interval=fov_search_intervals,
-            dense_flag=True,
-            track_mask=sta_track_mask,
-            min_valid_num=fov_min_valid_covalid,
-        )
-        assert len(fov_jump_pair_list) > 0, f"no valid pair for FOV search"
-        logging.info(f"Start analyzing {len(fov_jump_pair_list)} pairs for FOV search")
-        _, _, inlier_list_jumped = analyze_track_epi(
-            fov_jump_pair_list, sta_track, sta_track_mask, H=s2d.H, W=s2d.W
-        )
-        checked_pair, checked_inlier = [], []
-        for pair, inlier in zip(fov_jump_pair_list, inlier_list_jumped):
-            if inlier.sum() > fov_min_valid_covalid:
-                checked_pair.append(pair)
-                checked_inlier.append(inlier)
-        # collect the robsut mask inside the static
-        fov_jump_pair_list = checked_pair
-        inlier_list_jumped = torch.stack(checked_inlier, 0)
+    # * 2. compute also for later fov inlier mask
+    # rerun the epi analysis for later FOV init, with the pairs that count the static common visible mask
+    fov_jump_pair_list = make_pair_list(
+        T,
+        interval=fov_search_intervals,
+        dense_flag=True,
+        track_mask=sta_track_mask,
+        min_valid_num=fov_min_valid_covalid,
+    )
+    assert len(fov_jump_pair_list) > 0, "no valid pair for FOV search"
+    logging.info(f"Start analyzing {len(fov_jump_pair_list)} pairs for FOV search")
+    _, _, inlier_list_jumped = analyze_track_epi(
+        fov_jump_pair_list, sta_track, sta_track_mask, H=s2d.H, W=s2d.W
+    )
+    checked_pair, checked_inlier = [], []
+    for pair, inlier in zip(fov_jump_pair_list, inlier_list_jumped):
+        if inlier.sum() > fov_min_valid_covalid:
+            checked_pair.append(pair)
+            checked_inlier.append(inlier)
+    # collect the robsut mask inside the static
+    fov_jump_pair_list = checked_pair
+    inlier_list_jumped = torch.stack(checked_inlier, 0)
 
-        # * 3. compute FOV
-        optimal_fov = find_initinsic(
-            H=s2d.H,
-            W=s2d.W,
-            pair_list=fov_jump_pair_list,
-            pair_mask_list=inlier_list_jumped.to(
-                device
-            ),  # ! use the inlier mask to find the optimal fov
-            track=sta_track.to(device),
-            dep_list=sta_track_dep.to(device),
-            viz_fn=osp.join(ws, "fov_search.jpg"),
-            fallback_fov=fov_search_fallback,
-            search_N=fov_search_N,
-            search_start=fov_search_start,
-            search_end=fov_search_end,
-            depth_decay_th=robust_depth_decay_th,
-            depth_decay_sigma=robust_depth_decay_th,
-        )
-        # solve the neighboring pair list as well
-        E, E_i, opt_s_ij, opt_R_ij, opt_t_ij = compute_graph_energy(
-            optimal_fov,
-            continuous_pair_list,
-            sta_track_mask[[it[0] for it in continuous_pair_list]]
-            * sta_track_mask[[it[1] for it in continuous_pair_list]],
-            track2undistroed_homo(sta_track, H, W),
-            sta_track_dep,
-            depth_decay_th=robust_depth_decay_th,
-            depth_decay_sigma=robust_depth_decay_sigma,
-        )  # ! this is in metric space
+    # * 3. compute FOV
+    optimal_fov = find_initinsic(
+        H=s2d.H,
+        W=s2d.W,
+        pair_list=fov_jump_pair_list,
+        pair_mask_list=inlier_list_jumped.to(
+            device
+        ),  # ! use the inlier mask to find the optimal fov
+        track=sta_track.to(device),
+        dep_list=sta_track_dep.to(device),
+        viz_fn=osp.join(ws, "fov_search.jpg"),
+        cfg=cfg.fov,
+        depth_decay_th=robust_depth_decay_th,
+        depth_decay_sigma=robust_depth_decay_th,
+    )
+    # solve the neighboring pair list as well
+    E, E_i, opt_s_ij, opt_R_ij, opt_t_ij = compute_graph_energy(
+        optimal_fov,
+        continuous_pair_list,
+        sta_track_mask[[it[0] for it in continuous_pair_list]]
+        * sta_track_mask[[it[1] for it in continuous_pair_list]],
+        track2undistroed_homo(sta_track, H, W),
+        sta_track_dep,
+        depth_decay_th=robust_depth_decay_th,
+        depth_decay_sigma=robust_depth_decay_sigma,
+    )  # ! this is in metric space
 
-        # * 4. prepare camra
-        # todo: ! warning, the scale is ignored during initalziation, let the BA to solve this
-        cams = MonocularCameras(
-            s2d.T,
-            s2d.H,
-            s2d.W,
-            [optimal_fov, optimal_fov, 0.5, 0.5],
-            delta_flag=True,
-            init_camera_pose=(
-                Rt2T(opt_R_ij, opt_t_ij) if init_cam_with_optimal_fov_results else None
-            ),
-            iso_focal=iso_focal,
-        ).to(device)
-    else:
-        logging.info(
-            "MoCa solver use passed in GT cam as initialziaiton to start optimization"
-        )
-
-        # todo: rescale the camera
-
-        cams = gt_cam
-        if rescale_gt_cam_transl:
-            logging.info(
-                "Sometimes the GT pose and the metric depth are not in the same scale, rescale the camera"
-            )
-            cams = rescale_camera_pose(
-                s2d, cams, s_track=sta_track, s_track_mask=sta_track_mask
-            )
-        cams.to(device)
+    # * 4. prepare camra
+    # todo: ! warning, the scale is ignored during initalziation, let the BA to solve this
+    cams = MonocularCameras(
+        s2d.T,
+        s2d.H,
+        s2d.W,
+        [optimal_fov, optimal_fov, 0.5, 0.5],
+        delta_flag=True,
+        init_camera_pose=(
+            Rt2T(opt_R_ij, opt_t_ij) if init_cam_with_optimal_fov_results else None
+        ),
+        iso_focal=cfg.iso_focal,
+    ).to(device)
 
     # * 5. bundle adjustment
     compute_static_ba(
@@ -279,12 +206,6 @@ def moca_solve(
         depth_decay_th=robust_depth_decay_th,
         std_decay_th=robust_std_decay_th,
         std_decay_sigma=robust_std_decay_sigma,
-        #
-        viz_video_rgb=(
-            (s2d.rgb.detach().cpu().numpy() * 255).astype(np.uint8)
-            if viz_valid_ba_points
-            else None
-        ),
     )
     torch.cuda.empty_cache()
 
@@ -296,7 +217,6 @@ def moca_solve(
     viz_all_sel = np.random.choice(len(viz_all_pts), 50_000, replace=False)
     viz_all_pts = viz_all_pts[viz_all_sel]
     viz_all_pts[:, 3:] = viz_all_pts[:, 3:] * 255
-    print(viz_all_pts.shape)
     np.savetxt(osp.join(ws, "bundle", "all_pts.xyz"), viz_all_pts[:, :6], fmt="%.5f")
 
     return cams, s2d, track_static_selection

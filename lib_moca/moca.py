@@ -29,7 +29,7 @@ def rescale_camera_pose(
 ):
     device = s2d.dep.device
     homo_list, dep_list, rgb_list = prepare_track_homo_dep_rgb_buffers(
-        s2d, s_track[...,:2], s_track_mask, torch.arange(s2d.T).to(device)
+        s2d, s_track[..., :2], s_track_mask, torch.arange(s2d.T).to(device)
     )
     # ! this jitter removal is super important for robustly scale the Nvidia camera back to a correct scale!!
     # mask out large depth jitter
@@ -40,7 +40,7 @@ def rescale_camera_pose(
         depth_diff > large_depth_jitter_th * robust_alignment_jitter_th_ratio
     ) * neighbor_frame_mask
     logging.info(
-        f"When solving optimal cam scale, ignore {jitter_mask.sum() / neighbor_frame_mask.sum()*100.0:.2f}% potential jitters"
+        f"When solving optimal cam scale, ignore {jitter_mask.sum() / neighbor_frame_mask.sum() * 100.0:.2f}% potential jitters"
     )
     neighbor_frame_mask = neighbor_frame_mask * (~jitter_mask)
 
