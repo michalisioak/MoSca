@@ -34,9 +34,21 @@ class Renderer:
         self.device = device
 
         self.work_dir = work_dir
+
+        server = get_server(port=port)
+
+        gui_up = server.gui.add_vector3(
+        "Up Direction",
+        initial_value=(0.0, -1.0, -1.0),
+        step=0.01,
+    )
+
+        @gui_up.on_update
+        def _(_) -> None:
+            server.scene.set_up_direction(gui_up.value)
     
         
-        server = get_server(port=port)
+        
         self.viewer = nerfview.Viewer(server=server, render_fn=self.render_fn, mode='rendering')
         self._time_folder = server.gui.add_folder("Time")
         with self._time_folder:
@@ -46,24 +58,24 @@ class Renderer:
                 initial_fps=15.0,
             )
             self._playback_guis[0].on_update(self.viewer.rerender)
-            self._canonical_checkbox = server.gui.add_checkbox("Canonical", False)
-            self._canonical_checkbox.on_update(self.viewer.rerender)
+            # self._canonical_checkbox = server.gui.add_checkbox("Canonical", False)
+            # self._canonical_checkbox.on_update(self.viewer.rerender)
 
-            _cached_playback_disabled = []
+            # _cached_playback_disabled = []
 
-            def _toggle_gui_playing(event):
-                if event.target.value:
-                    nonlocal _cached_playback_disabled
-                    _cached_playback_disabled = [
-                        gui.disabled for gui in self._playback_guis
-                    ]
-                    target_disabled = [True] * len(self._playback_guis)
-                else:
-                    target_disabled = _cached_playback_disabled
-                for gui, disabled in zip(self._playback_guis, target_disabled):
-                    gui.disabled = disabled
+            # def _toggle_gui_playing(event):
+            #     if event.target.value:
+            #         nonlocal _cached_playback_disabled
+            #         _cached_playback_disabled = [
+            #             gui.disabled for gui in self._playback_guis
+            #         ]
+            #         target_disabled = [True] * len(self._playback_guis)
+            #     else:
+            #         target_disabled = _cached_playback_disabled
+            #     for gui, disabled in zip(self._playback_guis, target_disabled):
+            #         gui.disabled = disabled
 
-            self._canonical_checkbox.on_update(_toggle_gui_playing)
+            # self._canonical_checkbox.on_update(_toggle_gui_playing)
 
         # self._render_track_checkbox = server.gui.add_checkbox("Render tracks", False)
         # self._render_track_checkbox.on_update(self.viewer.rerender)
@@ -125,11 +137,8 @@ class Renderer:
         w2c = torch.linalg.inv(
             torch.from_numpy(camera_state.c2w.astype(np.float32)).to(self.device)
         )
-        t = (
-            int(self._playback_guis[0].value)
-            if not self._canonical_checkbox.value
-            else None
-        )
+        t = int(self._playback_guis[0].value)
+            
         
 
         gs5 = []
