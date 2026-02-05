@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-import argparse
+
 import glob
 import os
 
@@ -11,8 +11,9 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 from multiprocessing.dummy import Pool
-import os, os.path as osp
-import json, logging, time
+import os.path as osp
+import logging
+import time
 from matplotlib import cm
 
 
@@ -118,7 +119,7 @@ def thread(
         if idx - step >= 0:
             # backward flow and mask
             bwd_flow_path = os.path.join(
-                flow_dir, f"{file_names[idx]}_to_{file_names[idx-step]}.npz"
+                flow_dir, f"{file_names[idx]}_to_{file_names[idx - step]}.npz"
             )
             bwd_data = np.load(bwd_flow_path)
             bwd_flow, bwd_mask = bwd_data["flow"], bwd_data["mask"]
@@ -146,7 +147,7 @@ def thread(
             err[image_mask] = _err
             # * save the robust F matrix
             np.savez_compressed(
-                osp.join(F_save_dir, f"{file_names[idx]}_to_{file_names[idx-1]}.npz"),
+                osp.join(F_save_dir, f"{file_names[idx]}_to_{file_names[idx - 1]}.npz"),
                 F=F,
                 mask=mask > 0.5,
             )
@@ -161,7 +162,7 @@ def thread(
         if idx + step < len(img_fn_list):
             # forward flow and mask
             fwd_flow_path = os.path.join(
-                flow_dir, f"{file_names[idx]}_to_{file_names[idx+step]}.npz"
+                flow_dir, f"{file_names[idx]}_to_{file_names[idx + step]}.npz"
             )
             fwd_data = np.load(fwd_flow_path)
             fwd_flow, fwd_mask = fwd_data["flow"], fwd_data["mask"]
@@ -189,7 +190,7 @@ def thread(
             err[image_mask] = _err
             # * save the robust F matrix
             np.savez_compressed(
-                osp.join(F_save_dir, f"{file_names[idx]}_to_{file_names[idx+1]}.npz"),
+                osp.join(F_save_dir, f"{file_names[idx]}_to_{file_names[idx + 1]}.npz"),
                 F=F,
                 mask=mask > 0.5,
             )
@@ -307,7 +308,7 @@ def analyze_epi(working_dir, step_list=[1], num_threads=None):
 
     epi_global_list = load_epi_error(global_epi_dir)
     viz_epi_error_folder(epi_global_list, osp.join(working_dir, "epi_error.mp4"))
-    logging.info(f"EPI Total time: {(time.time()-start_t)/60.0:.2f}min")
+    logging.info(f"EPI Total time: {(time.time() - start_t) / 60.0:.2f}min")
     return
 
 

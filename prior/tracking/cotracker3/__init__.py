@@ -2,10 +2,7 @@ from dataclasses import dataclass
 from typing import cast
 from loguru import logger
 import torch
-import os.path as osp
 from tqdm import tqdm
-import numpy as np
-from prior.tracking.viz import Visualizer
 
 from prior.tracking import TrackingConfig
 from prior.tracking.queries import get_uniform_random_queries
@@ -17,7 +14,7 @@ import torch.nn as nn
 
 @dataclass
 class CoTrackerConfig(TrackingConfig):
-    online_flag: bool = True
+    online_flag: bool = False
 
 
 @torch.no_grad()
@@ -124,20 +121,11 @@ def cotracker3(cfg: CoTrackerConfig, ws: str, device: str | None = None):
     tracks = torch.cat(tracks, dim=1)
     visibility = torch.cat(visibility, dim=1)
 
-    viz_choice = np.random.choice(
-        tracks.shape[1], min(tracks.shape[1], cfg.max_viz_cnt)
-    )
-    vis = Visualizer(save_dir=osp.join(ws, "viz", "tracks"))
-    vis.visualize(
-        video=video_pt,
-        tracks=tracks[None, :, viz_choice, :2],
-        visibility=visibility[None, :, viz_choice],
-        filename=f"cotracker3_{postfix}",
-    )
-
     save_tracks(
-        tracks=tracks.permute(1, 0, 2).cpu().numpy(),  # N, T, 2
-        visibility=visibility.permute(1, 0).cpu().numpy(),  # N, 1
+        img_list=img_list,
+        tracks=tracks.permute(1, 0, 2),  # N, T, 2
+        visibility=visibility.permute(1, 0),  # N, 1
         ws=ws,
         name=f"cotracker3_{postfix}",
+        cfg=cfg,
     )

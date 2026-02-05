@@ -13,18 +13,25 @@ class FovSearchConfig:
     search_N: int = 100
     search_start: float = 30.0
     search_end: float = 100.0
-    depth_decay_th: float = 2.0
-    depth_decay_sigma: float = 1.0
 
 
 @torch.no_grad()
 def find_initinsic(
-    pair_list, pair_mask_list, H, W, track, dep_list, cfg: FovSearchConfig, ws
+    pair_list,
+    pair_mask_list,
+    height: int,
+    width: int,
+    track,
+    dep_list,
+    depth_decay_th: float,
+    depth_decay_sigma: float,
+    cfg: FovSearchConfig,
+    ws: str,
 ):
     logger.info("Start FOV search...")
     # * assume fov is known, solve the optimal s,R,t between view pair and form an energy under such case
     # convert the [0,W], [0,H] to aspect un-distorted homo_list
-    homo_list = track2undistroed_homo(track, H, W)
+    homo_list = track2undistroed_homo(track, height, width)
 
     e_list, fov_list, R_list, t_list = [], [], [], []
     search_candidates = np.linspace(cfg.search_start, cfg.search_end, num=cfg.search_N)[
@@ -37,8 +44,8 @@ def find_initinsic(
             pair_mask_list,
             homo_list,
             dep_list,
-            depth_decay_th=cfg.depth_decay_th,
-            depth_decay_sigma=cfg.depth_decay_sigma,
+            depth_decay_th=depth_decay_th,
+            depth_decay_sigma=depth_decay_sigma,
         )
         e_list.append(E.item())
         fov_list.append(fov)
@@ -47,6 +54,8 @@ def find_initinsic(
     e_list = np.array(e_list)
     best_ind = e_list.argmin()
     optimial_fov = fov_list[best_ind]
+    optima_R_ij = R_list[best_ind]
+    optima_t_ij = t_list[best_ind]
     # ! detect monotonic case and use fallback fov if no optimal is found
     if (e_list[1:] >= e_list[:-1]).all() or (e_list[1:] <= e_list[:-1]).all():
         logger.warning(
@@ -68,4 +77,4 @@ def find_initinsic(
     plt.close()
     logger.info(f"FOV search done, find FOV={optimial_fov:.3f} deg")
 
-    return optimial_fov
+    return optimial_fov, optima_R_ij, optima_t_ij

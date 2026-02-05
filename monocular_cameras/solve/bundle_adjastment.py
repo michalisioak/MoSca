@@ -40,8 +40,7 @@ class StaticBundleAdjastmentConfig:
 
 
 def compute_static_ba(
-    s2d: Saved2D,
-    log_dir: str,
+    ws: str,
     s_track,
     s_track_valid_mask,
     cfg: StaticBundleAdjastmentConfig,
@@ -73,7 +72,7 @@ def compute_static_ba(
     )
 
     viz = BundleAdjastmentVizualizer(
-        log_dir=log_dir,
+        log_dir=ws,
         total_steps=cfg.steps,
         cfg=cfg.viz,
         rgb=rgb_list.detach().cpu().numpy(),
@@ -267,7 +266,7 @@ def compute_static_ba(
     dep_scale = dep_scale / dep_scale.mean()
     logging.info(f"Update the S2D depth scale with {dep_scale}")
     s2d.rescale_depth(dep_scale)
-    torch.save(cams.state_dict(), osp.join(log_dir, "bundle_cams.pth"))
+    torch.save(cams.state_dict(), osp.join(ws, "bundle_cams.pth"))
     torch.save(
         {
             # sol
@@ -276,7 +275,7 @@ def compute_static_ba(
             "s_track": s_track,
             "s_track_mask": s_track_valid_mask,
         },
-        osp.join(log_dir, "bundle.pth"),
+        osp.join(ws, "bundle.pth"),
     )
     # also save a reconstructed point cloud
     # if cfg.save_more_flag:
@@ -431,7 +430,7 @@ def query_image_buffer_by_pix_int_coord(buffer: torch.Tensor, pixel_int_coordina
 
 
 def prepare_track_homo_dep_rgb_buffers(
-    s2d: Saved2D, track: torch.Tensor, track_mask: torch.Tensor, t_list
+    dep:, track: torch.Tensor, track_mask: torch.Tensor, t_list
 ):
     # track: T,N,2, track_mask: T,N
     device = track.device
@@ -440,16 +439,16 @@ def prepare_track_homo_dep_rgb_buffers(
         _uv = track[ind]
         _int_uv, _inside_mask = round_int_coordinates(_uv, s2d.H, s2d.W)
         _dep = query_image_buffer_by_pix_int_coord(
-            s2d.dep[tid].clone().to(device), _int_uv
+            dep[tid].clone().to(device), _int_uv
         )
         _homo = query_image_buffer_by_pix_int_coord(
-            s2d.homo_map.clone().to(device), _int_uv
+            homo_map.clone().to(device), _int_uv
         )
         ori_dep_list.append(_dep.to(device))
         homo_list.append(_homo.to(device))
         # for viz purpose
         _rgb = query_image_buffer_by_pix_int_coord(
-            s2d.rgb[tid].clone().to(device), _int_uv
+            rgb[tid].clone().to(device), _int_uv
         )
         rgb_list.append(_rgb.to(device))
     rgb_list = torch.stack(rgb_list, 0)

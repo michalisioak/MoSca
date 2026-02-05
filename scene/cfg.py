@@ -19,6 +19,7 @@ class GaussianSplattingConfig:
     sh0_lr: float = 2.5e-3
     shN_lr: float = 2.5e-3 / 20
     optimizer: Literal["SparseAdam", "Adam", "SelectiveAdam"] = "SelectiveAdam"
+    sph_order: int = 3
 
     def get_optimizer(self):
         optim = self.optimizer

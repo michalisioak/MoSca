@@ -140,7 +140,7 @@ def moca_solve(
     # * 1. mark static track
     epierr_list = None
     if static_id_mode == "raft":
-        logging.info(f"Use pre-computed 2D epi error to mark static tracks")
+        logging.info("Use pre-computed 2D epi error to mark static tracks")
         # * mark by collecting epi error
         # collect the epi error from the pre-compute 2D epi from raft
         raft_epi = s2d.epi.clone()
@@ -148,7 +148,7 @@ def moca_solve(
             epierr_list = query_buffers_by_track(raft_epi[..., None], track, track_mask)
             epierr_list = epierr_list.squeeze(-1).cpu()
     elif static_id_mode == "track":
-        logging.info(f"Analyze the track epi to mark static tracks")
+        logging.info("Analyze the track epi to mark static tracks")
         # * mark by compute all epi for neighboring pairs and
         # first call for neighbor pairs, solve the epi, and get F, so later can use to initialize pose
         F_list, epierr_list, _ = analyze_track_epi(

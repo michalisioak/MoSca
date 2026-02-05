@@ -148,7 +148,6 @@ def visualize_track(save_fn, tracks, visibility, video_pt, max_viz_cnt=512):
     )
 
 
-
 class Saved2D(nn.Module):
     def __init__(self, ws) -> None:
         super().__init__()
@@ -253,7 +252,7 @@ class Saved2D(nn.Module):
             dep = np.load(dep_fn)["dep"]
         if mask_depth_flag:
             dep_mask, _ = laplacian_filter_depth(dep, depth_boundary_th, 5)
-            logging.info(f"Dep Boundary Mask {dep_mask.mean()*100:.2f}%")
+            logging.info(f"Dep Boundary Mask {dep_mask.mean() * 100:.2f}%")
             dep_mask = dep_mask * (dep > depth_min) * (dep < depth_max)
             dep = np.clip(dep, depth_min, depth_max)
         else:
@@ -268,9 +267,9 @@ class Saved2D(nn.Module):
     def replace_depth(self, dep, dep_mask):
         if hasattr(self, "dep"):
             assert dep.shape == self.dep.shape, f"{dep.shape} vs {self.dep.shape}"
-            assert (
-                dep_mask.shape == self.dep_mask.shape
-            ), f"{dep_mask.shape} vs {self.dep_mask.shape}"
+            assert dep_mask.shape == self.dep_mask.shape, (
+                f"{dep_mask.shape} vs {self.dep_mask.shape}"
+            )
         self.register_gradfree_buffer("dep", dep)
         self.register_gradfree_buffer("dep_mask", dep_mask)
         return self
@@ -281,7 +280,7 @@ class Saved2D(nn.Module):
     ):
         dep = self.dep.cpu().numpy()
         dep_mask, _ = laplacian_filter_depth(dep, depth_boundary_th, 5)
-        logging.info(f"Dep Boundary Mask {dep_mask.mean()*100:.2f}%")
+        logging.info(f"Dep Boundary Mask {dep_mask.mean() * 100:.2f}%")
         dep_mask = dep_mask * (dep > depth_min) * (dep < depth_max)
         # dep[~dep_mask] = np.inf
         dep = np.clip(dep, depth_min, depth_max)
@@ -335,7 +334,7 @@ class Saved2D(nn.Module):
 
         # re-scale the 3rd depth if the depth is rescaled
         if self.track.shape[-1] == 3 and hasattr(self, "scale_nw"):
-            logging.info(f"Also align the 3D track with the depth scale")
+            logging.info("Also align the 3D track with the depth scale")
             self.track[:, :, 2] = self.track[:, :, 2].clone() * self.scale_nw
 
         return self
@@ -448,7 +447,7 @@ class Saved2D(nn.Module):
         assert len(dep_scale) == self.T, f"dep_scale:{len(dep_scale)} vs T:{self.T}"
         self.dep = self.dep.clone() * dep_scale[:, None, None]
         if self.track.shape[-1] == 3:
-            logging.info(f"Also align the 3D track with the depth scale")
+            logging.info("Also align the 3D track with the depth scale")
             self.track[:, :, 2] = self.track[:, :, 2].clone() * dep_scale[:, None]
         return
 

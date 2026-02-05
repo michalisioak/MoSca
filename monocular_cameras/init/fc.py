@@ -1,10 +1,11 @@
 from typing import Optional
+import numpy as np
 import torch
 import logging
 
 
 def init_fc(
-    fovxfovycxcy: Optional[torch.Tensor],
+    fovxfovycxcy: tuple[float, float, float, float],
     K: Optional[torch.Tensor],
     height: float,
     width: float,
@@ -15,8 +16,8 @@ def init_fc(
             logging.warning(
                 f"Both fxfycxcy and KHW are None, use default {fovxfovycxcy}"
             )
-        rel_focal_x = 1.0 / torch.tan(torch.deg2rad(fovxfovycxcy[0]) / 2.0)
-        rel_focal_y = 1.0 / torch.tan(torch.deg2rad(fovxfovycxcy[1]) / 2.0)
+        rel_focal_x = 1.0 / np.tan(np.deg2rad(fovxfovycxcy[0]) / 2.0)
+        rel_focal_y = 1.0 / np.tan(np.deg2rad(fovxfovycxcy[1]) / 2.0)
         rel_focal = torch.Tensor([rel_focal_x, rel_focal_y]).squeeze()
         cxcy_ratio = torch.Tensor([fovxfovycxcy[2], fovxfovycxcy[3]])
     else:

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import os
 import os.path as osp
-import numpy as np
 from tapnet.torch import tapir_model
 from loguru import logger
 import torch
@@ -11,7 +10,6 @@ from prior.tracking.bootstap.inference import inference
 from prior.tracking.queries import get_uniform_random_queries
 from prior.tracking.save import save_tracks
 
-from prior.tracking.viz import Visualizer
 from prior.vid_loader import load_video
 
 
@@ -63,20 +61,12 @@ def bootstap(cfg: BootsTAPConfig, ws: str, device: str | None = None):
     visibility = torch.cat(visibility, dim=0)
 
     save_tracks(
-        tracks=tracks.cpu().numpy(),
-        visibility=visibility.cpu().numpy(),
+        img_list=img_list,
+        tracks=tracks,
+        visibility=visibility,
         ws=ws,
         name="bootsTAP",
-    )
-    viz_choice = np.random.choice(
-        tracks.shape[0], min(tracks.shape[0], cfg.max_viz_cnt)
-    )
-    vis = Visualizer(save_dir=osp.join(ws, "viz", "tracks"))
-    vis.visualize(
-        video=img_list.permute(0, 3, 1, 2)[None],
-        tracks=tracks.permute(1, 0, 2)[None, :, viz_choice, :2],
-        visibility=visibility.permute(1, 0)[None, :, viz_choice],
-        filename="bootstap",
+        cfg=cfg,
     )
 
     return tracks, visibility

@@ -1,14 +1,12 @@
 # pyright: reportUnknownVariableType=false
 # pyright: reportUntypedFunctionDecorator=false
-from typing import Optional
+from typing import Literal, Optional
 import torch
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
 import logging
 
-from backproject import backproject
-from project import project
 from monocular_cameras.init import init_fc, init_qt
 from utils3d.torch import (
     matrix_to_quaternion,
@@ -25,6 +23,14 @@ class CameraConfig:
     lr_t: float | None = 1e-4
     lr_f: float | None = 1e-4
     lr_c: float | None = 0.0
+    optimizer: Literal["Adam"] = "Adam"
+
+    def get_optimizer(self):
+        optim = self.optimizer
+        if optim == "Adam":
+            return torch.optim.Adam
+        else:
+            assert False, f"Unsupported optimizer {optim}"
 
 
 class MonocularCameras(nn.Module):
@@ -33,9 +39,9 @@ class MonocularCameras(nn.Module):
         n_time_steps: int,
         default_H: int,
         default_W: int,
-        fxfycxcy: Optional[
-            torch.Tensor
-        ] = None,  # intr init 1, fxfy in deg, cxcy in ratio [53.1, 53.1, 0.5, 0.5]
+        fxfycxcy: tuple[
+            float, float, float, float
+        ],  # intr init 1, fxfy in deg, cxcy in ratio [53.1, 53.1, 0.5, 0.5]
         K: Optional[torch.Tensor] = None,  # intr init 2, K is 3x3 mat
         #
         delta_flag: bool = True,
@@ -73,26 +79,6 @@ class MonocularCameras(nn.Module):
 
     def __len__(self):
         return self.T
-
-    @classmethod
-    def load_from_ckpt(cls, ckpt):
-        logging.info("Load camera from checkpoint")
-        H = ckpt["default_H"]
-        W = ckpt["default_W"]
-        delta_flag = ckpt["delta_flag"]
-        if "iso_focal" not in ckpt.keys():
-            logging.warning(
-                "Load the old ckpt, by default in the old version, iso-focal is False"
-            )
-            ckpt["iso_focal"] = torch.tensor(False)
-        if "_rel_focal" not in ckpt.keys():
-            logging.warning("Load the old ckpt, use rel_focal instead of _rel_focal")
-            ckpt["_rel_focal"] = ckpt["rel_focal"]
-            del ckpt["rel_focal"]
-        T = len(ckpt["q_wc"])
-        cams = cls(n_time_steps=T, default_H=H, default_W=W, delta_flag=delta_flag)
-        cams.load_state_dict(ckpt, strict=True)
-        return cams
 
     def summary(self):
         logging.info(
@@ -273,7 +259,7 @@ class MonocularCameras(nn.Module):
         angle = np.rad2deg(half_angle * 2.0)
         return angle
 
-    def get_optimizable_list(self, cfg: CameraConfig):
+    def get_optimizer(self, cfg: CameraConfig):
         ret = []
         if cfg.lr_q is not None and cfg.lr_q > 0:
             ret.append({"params": [self.q_wc], "lr": cfg.lr_q, "name": "R"})
@@ -283,13 +269,8 @@ class MonocularCameras(nn.Module):
             ret.append({"params": [self._rel_focal], "lr": cfg.lr_f, "name": "f"})
         if cfg.lr_c is not None and cfg.lr_c > 0:
             ret.append({"params": [self.cxcy_ratio], "lr": cfg.lr_c, "name": "cxcy"})
-        return ret
-
-    def backproject(self, uv: torch.Tensor, d: torch.Tensor):
-        return backproject(uv, d, self)
-
-    def project(self, xyz: torch.Tensor, th: float = 1e-5):
-        return project(xyz, self, th=th)
+        if len(ret) > 0:
+            return cfg.get_optimizer()(ret)
 
     def trans_pts_to_world(self, tid: int, pts_c: torch.Tensor):
         assert pts_c.shape[-1] == 3  # and pts_c.ndim == 2

@@ -8,6 +8,8 @@ from matplotlib import pyplot as plt
 import imageio
 import open3d as o3d
 
+from lib_prior.prior_loading import Saved2D
+
 sys.path.append(osp.dirname(osp.abspath(__file__)))
 
 from camera import MonocularCameras
@@ -40,7 +42,7 @@ def detect_sharp_changes_in_curve(track_mask, curve, max_vel_th, valid_type="and
     invalid_mask = max_diff > max_vel_th
     # assert track_mask[invalid_mask].all()
     logging.info(
-        f"curve velocity check th={max_vel_th} has {invalid_mask.sum()} ({invalid_mask.sum()/(track_mask.sum()+1e-6)*100.0:.2f}%) invalid slots"
+        f"curve velocity check th={max_vel_th} has {invalid_mask.sum()} ({invalid_mask.sum() / (track_mask.sum() + 1e-6) * 100.0:.2f}%) invalid slots"
     )
     new_track_mask = track_mask.clone()
     new_track_mask[invalid_mask] = False
@@ -83,13 +85,11 @@ def line_segment_init(track_mask, point_ref):
             select_from = working_point_ref[t + 1 :, to_fill_mask]
             valid_right_end = torch.gather(
                 select_from, 0, max_ind[None, :, None].expand(-1, -1, 3)
-            )[
-                0, max_value > 0
-            ]  # valid when max_value > 0
+            )[0, max_value > 0]  # valid when max_value > 0
             if t == 0:
-                assert (
-                    len(valid_right_end) == to_fill_valid_curve.shape[1]
-                ), "empty noodle!"
+                assert len(valid_right_end) == to_fill_valid_curve.shape[1], (
+                    "empty noodle!"
+                )
                 value = valid_right_end
             else:
                 # must have a left end
@@ -109,7 +109,7 @@ def line_segment_init(track_mask, point_ref):
 
 
 def get_dynamic_curves(
-    s2d,
+    s2d: Saved2D,
     cams: MonocularCameras,
     return_all_curves=False,
     # filter of 2D tracks to avoid the fg-bg error track flickering
@@ -155,7 +155,7 @@ def get_dynamic_curves(
     # ! the subsample may lead to all empty track, which will be filtered out later by the min valid cnt!
 
     if track.shape[-1] == 3:
-        logging.info(f"SpaT mode, direct use 3D Track")
+        logging.info("SpaT mode, direct use 3D Track")
         # spa tracker model
         # manually homo list
         homo_list = __int2homo_coord__(track[..., :2], s2d.H, s2d.W)
@@ -190,13 +190,13 @@ def get_dynamic_curves(
                 std_ratio=refilter_o3d_std_ratio,
             )
             logging.info(
-                f"O3d outlier ratio {(~inlier_mask).float().mean()*100.0:.2f}%"
+                f"O3d outlier ratio {(~inlier_mask).float().mean() * 100.0:.2f}%"
             )
             track_mask = track_mask * inlier_mask
 
             inlier_mask = curve_shaking_identification(curve_xyz, refilter_shaking_th)
             logging.info(
-                f"shaking outlier ratio {(~inlier_mask).float().mean()*100.0:.2f}%"
+                f"shaking outlier ratio {(~inlier_mask).float().mean() * 100.0:.2f}%"
             )
             if refilter_remove_shaking_curve:
                 has_shaking = track_mask * (~inlier_mask)  # valid but has outlier
@@ -212,7 +212,7 @@ def get_dynamic_curves(
                 fetch_spatracker_diff < refilter_spatracker_consistency_th
             )
             logging.info(
-                f"spatracker consistency newly detect {(~spatracker_consistent_mask & track_mask).float().mean()*100.0:.2f}% with th={refilter_spatracker_consistency_th}"
+                f"spatracker consistency newly detect {(~spatracker_consistent_mask & track_mask).float().mean() * 100.0:.2f}% with th={refilter_spatracker_consistency_th}"
             )
             track_mask = track_mask * spatracker_consistent_mask
 
@@ -257,7 +257,7 @@ def get_dynamic_curves(
             curve_xyz = line_segment_init(track_mask, curve_xyz)
 
     else:
-        logging.info(f"2D track mode, use line segment to fill")
+        logging.info("2D track mode, use line segment to fill")
         homo_list, dep_list, rgb_list = prepare_track_buffers(
             s2d, track[..., :2], track_mask, t_list
         )
@@ -275,7 +275,7 @@ def get_dynamic_curves(
 
             inlier_mask = curve_shaking_identification(curve_xyz, refilter_shaking_th)
             logging.info(
-                f"shaking outlier ratio {(~inlier_mask).float().mean()*100.0:.2f}%"
+                f"shaking outlier ratio {(~inlier_mask).float().mean() * 100.0:.2f}%"
             )
             if refilter_remove_shaking_curve:
                 has_shaking = track_mask * (~inlier_mask)  # valid but has outlier
@@ -339,7 +339,7 @@ def slot_o3d_outlier_identifyication(
         ret_inlier_mask[t] = _t_inlier_mask
     ret_inlier_mask = torch.from_numpy(ret_inlier_mask).bool().to(curve_xyz.device)
     logging.warning(
-        f"O3D outlier has {ret_inlier_mask.sum()/curve_mask.sum()*100:.2f}% inliers ({ret_inlier_mask.sum()} inliers out of {curve_mask.sum()})"
+        f"O3D outlier has {ret_inlier_mask.sum() / curve_mask.sum() * 100:.2f}% inliers ({ret_inlier_mask.sum()} inliers out of {curve_mask.sum()})"
     )
     return ret_inlier_mask
 
@@ -569,7 +569,7 @@ def geometry_scf_init(
                 time_window=cams.T,
             )
             imageio.imsave(
-                osp.join(viz_dir, f"{prefix}dyn_scf_init_{step+1:06d}.jpg"),
+                osp.join(viz_dir, f"{prefix}dyn_scf_init_{step + 1:06d}.jpg"),
                 viz_frame[0],
             )
             if viz_node_rgb is not None:
@@ -582,7 +582,7 @@ def geometry_scf_init(
                     zoom_out_factor=1.0,
                 )
                 imageio.mimsave(
-                    osp.join(viz_dir, f"{prefix}cam_curve_{step+1:06d}.gif"),
+                    osp.join(viz_dir, f"{prefix}cam_curve_{step + 1:06d}.gif"),
                     viz_list,
                     loop=1000,
                 )
@@ -603,7 +603,7 @@ def geometry_scf_init(
                     zoom_out_factor=0.2,
                 )
                 imageio.mimsave(
-                    osp.join(viz_dir, f"{prefix}_curve_valid_green_{step+1:06d}.gif"),
+                    osp.join(viz_dir, f"{prefix}_curve_valid_green_{step + 1:06d}.gif"),
                     viz_list,
                     loop=1000,
                 )
@@ -642,7 +642,7 @@ def geometry_scf_init(
                         imageio.mimsave(
                             osp.join(
                                 viz_dir,
-                                f"{prefix}_curve_graph_l{level}_{step+1:06d}.gif",
+                                f"{prefix}_curve_graph_l{level}_{step + 1:06d}.gif",
                             ),
                             viz_list,
                             loop=1000,
@@ -776,7 +776,7 @@ def __draw_graph__(t, scf: MoSca, line_N=16, level=-1):
 
 
 @torch.no_grad()
-def __draw_gs_point_line__(start:torch.Tensor, end, n=32)-> torch.Tensor:
+def __draw_gs_point_line__(start: torch.Tensor, end, n=32) -> torch.Tensor:
     # start, end is N,3 tensor
     line_dir = end - start
     xyz = (
