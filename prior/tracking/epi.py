@@ -66,8 +66,8 @@ def analyze_track_epi(
     pair_list: list[tuple[int, int]],
     track: torch.Tensor,
     track_mask,
-    H: int,
-    W: int,
+    height: int,
+    width: int,
     F_list=None,
 ):
     """
@@ -84,8 +84,8 @@ def analyze_track_epi(
     # track_mask: tensor, (T, N)
     # H: int, height, W: int, width
     track_noramlized = track.clone().cpu().float()
-    track_noramlized[..., 0] = 2.0 * track_noramlized[..., 0] / W - 1.0
-    track_noramlized[..., 1] = 2.0 * track_noramlized[..., 1] / H - 1.0
+    track_noramlized[..., 0] = 2.0 * track_noramlized[..., 0] / width - 1.0
+    track_noramlized[..., 1] = 2.0 * track_noramlized[..., 1] / height - 1.0
 
     # * parallel solve
     jobs = []

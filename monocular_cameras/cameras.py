@@ -7,7 +7,8 @@ import torch.nn.functional as F
 import numpy as np
 import logging
 
-from monocular_cameras.init import init_fc, init_qt
+from monocular_cameras.init.fc import init_fc
+from monocular_cameras.init.qt import init_qt
 from utils3d.torch import (
     matrix_to_quaternion,
     quaternion_to_matrix,
@@ -51,13 +52,13 @@ class MonocularCameras(nn.Module):
         # * cam flag
         iso_focal: bool = False,
     ) -> None:
-        # super().__init__()
+        super().__init__()
         self.T = n_time_steps
         self.delta_flag = nn.Buffer(torch.tensor(delta_flag))
         self.iso_focal = nn.Buffer(torch.tensor(iso_focal))
 
         rel_focal, cxcy_ratio = init_fc(
-            fxfycxcy, K, width=float(self.default_W), height=float(self.default_H)
+            fxfycxcy, K, width=float(default_W), height=float(default_H)
         )
         self._rel_focal = nn.Parameter(rel_focal)  # ! both rel to short side=2
         self.cxcy_ratio = nn.Parameter(cxcy_ratio)  # ! separate ratio for H=1, W=1

@@ -34,7 +34,7 @@ def depth_anything_v3(cfg: DepthAnythingV3Config, ws: str, device: str | None = 
     dep_list_unscaled = res.depth
     dep_list = []
     for dep in dep_list_unscaled:
-        dep = cv2.resize(dep, (W, H), interpolation=cv2.INTER_NEAREST_EXACT)
+        dep = cv2.resize(dep, (H, W), interpolation=cv2.INTER_NEAREST_EXACT)
         dep_list.append(dep)
     save_depth_list(dep_list, ws, "DepthAnything3")
     viz_depth_list(dep_list, ws, "DepthAnything3")

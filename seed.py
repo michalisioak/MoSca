@@ -3,7 +3,10 @@ import torch
 import numpy as np
 from loguru import logger
 
-def seed_everything(seed):
+SEED = 1234
+
+
+def seed_everything(seed: int = SEED):
     logger.info(f"seed: {seed}")
     random.seed(seed)
     torch.manual_seed(seed)

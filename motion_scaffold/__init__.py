@@ -2,21 +2,15 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-import logging, time
-import sys, os, os.path as osp
+from loguru import logger
 from pytorch3d.ops import knn_points
 from tqdm import tqdm
-from matplotlib import pyplot as plt
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from scaffold_utils.dualquat_helper import Rt2dq, dq2unitdq, dq2Rt
+from .dualquat import Rt2dq, dq2unitdq, dq2Rt
 from utils3d.torch import (
-    matrix_to_axis_angle,
     quaternion_to_matrix,
     matrix_to_quaternion,
 )
-from gs_utils.gs_optim_helper import prune_optimizer, cat_tensors_to_optimizer
 
 # DQ_EPS = 0.00001
 DQ_EPS = 0.001
@@ -37,7 +31,6 @@ class MoSca(nn.Module):
         topo_dist_top_k: int = 1,
         topo_sample_T: int = 1000,
         topo_th_ratio: float = 8.0,
-        skinning_method: str = "dqb",
         sigma_max_ratio: float = 10.0,
         sigma_init_ratio: float = 1.0,  # independent to the max sigma
         break_topo_between_group=True,  # by default don't construct topology edges between two groups
@@ -70,13 +63,13 @@ class MoSca(nn.Module):
             node_grouping = torch.zeros_like(node_certain[0], dtype=torch.int)  # M
         if len(torch.unique(node_grouping)) > 1 and sort_node:
             # sort the node by the grouping
-            logging.warning(f"Re-sort the node order!")
+            logger.warning("Re-sort the node order!")
             sort_id = torch.argsort(node_grouping)
             node_xyz = node_xyz[:, sort_id]
             node_certain = node_certain[:, sort_id]
             node_grouping = node_grouping[sort_id]
 
-        self._node_xyz = nn.Parameter(node_xyz.to(init_device))
+        self.node_xyz = nn.Parameter(node_xyz.to(init_device))
         self.register_buffer(
             "_node_certain", node_certain.to(init_device)
         )  # if certain True
@@ -86,15 +79,15 @@ class MoSca(nn.Module):
         # * compute topology with grouping
         # first identify the spatial unit
         if spatial_unit_hard_set is None or spatial_unit_hard_set <= 0.0:
-            logging.info(
+            logger.info(
                 f"Auto set spatial unit with factor={spatial_unit_factor} from curve median dist"
             )
             spatial_unit = spatial_unit_factor * __identify_spatial_unit_from_curves__(
-                self._node_xyz, self._node_certain, K=skinning_k
+                self.node_xyz, self._node_certain, K=skinning_k
             )
-            logging.info(f"Auto set spatial unit with factor={spatial_unit}")
+            logger.info(f"Auto set spatial unit with factor={spatial_unit}")
         else:
-            logging.info(f"Hard set spatial unit with factor={spatial_unit_hard_set}")
+            logger.info(f"Hard set spatial unit with factor={spatial_unit_hard_set}")
             spatial_unit = spatial_unit_hard_set
         self.register_buffer("spatial_unit", torch.tensor(spatial_unit))
         self.register_buffer("skinning_k", torch.tensor(skinning_k).long())
@@ -116,7 +109,7 @@ class MoSca(nn.Module):
         self.register_buffer(
             "break_topo_between_group", torch.tensor(break_topo_between_group)
         )
-        logging.info(f"mosca break topo between group: {break_topo_between_group}")
+        logger.info(f"mosca break topo between group: {break_topo_between_group}")
         self.update_topology(curve_mask=self._node_certain)
 
         # * compute optimal frame and init the rotation
@@ -137,13 +130,7 @@ class MoSca(nn.Module):
         self._node_sigma_logit = nn.Parameter(node_sigma_logit)  # M,1
 
         # * Skinning config
-        # self.blending_method = skinning_method
-        self.blending_mehtod_int_dict = {"dqb": 0, "lbs": 1}
-        self.register_buffer(
-            "blending_method",
-            torch.Tensor([self.blending_mehtod_int_dict[skinning_method]]).long(),
-        )
-        self.set_skinning_method()
+        self.blending_func = skinning_method
 
         self.register_buffer(
             "w_corr_maintain_sum_flag", torch.tensor(w_corr_maintain_sum_flag)
@@ -152,10 +139,10 @@ class MoSca(nn.Module):
         # * Buffers
         if t_list is None:
             t_list = torch.arange(self.T).long()
-            logging.info(f"[t_list] is not provided and set to default")
+            logger.info("[t_list] is not provided and set to default")
         else:
             t_list = torch.as_tensor(t_list).long()
-            logging.info(f"[t_list] is provided: {t_list[:3]} ... {t_list[-3:]}")
+            logger.info(f"[t_list] is provided: {t_list[:3]} ... {t_list[-3:]}")
         self.register_buffer("_t_list", t_list)
 
         self.min_node_num = min_node_num
@@ -165,16 +152,6 @@ class MoSca(nn.Module):
         )
         self.to(init_device)
         self.summary()
-
-    def set_skinning_method(self):
-        if self.blending_method == 0:
-            self.__BLEND_FUNC__ = __DQB_warp__
-        elif self.blending_method == 1:
-            logging.warning("USE LBS")
-            self.__BLEND_FUNC__ = __LBS_warp__
-        else:
-            raise NotImplementedError(f"Unknown blending")
-        return
 
     @torch.no_grad()
     def compute_rotation_from_xyz(self):
@@ -187,33 +164,27 @@ class MoSca(nn.Module):
         return
 
     @property
-    def device(self):
-        assert self._node_xyz != None
-        return self._node_xyz.device
-
-    @property
     def M(self):
-        return self._node_xyz.shape[1]
+        return self.node_xyz.shape[1]
 
     @property
     def T(self):
-        return self._node_xyz.shape[0]
+        return self.node_xyz.shape[0]
 
     def summary(self):
-        logging.info(
+        logger.info(
             f"MoSca Summary: T={self.T}; M={self.M}; K={self.skinning_k}; spatial-unit={self.spatial_unit}"
         )
 
-        logging.info(
+        logger.info(
             f"MoSca Summary[1]: T={self.T}; M={self.M}; K={self.skinning_k}; Multi-level={self.mlevel_list}"
         )
-        logging.info(
+        logger.info(
             f"MoSca Summary[2]: curve-dist-K={self.topo_dist_top_k}; spatial-unit={self.spatial_unit}; topo-th-ratio={self.topo_th_ratio}"
         )
-        logging.info(
+        logger.info(
             f"MoSca Summary[3]: SK-method={self.blending_method}; fixed-topology={self.fixed_topology_flag}; sigma-max={self.max_sigma}; sigma-init={self.init_sigma}"
         )
-        return
 
     def sig_act(self, x):
         return self.max_sigma * torch.sigmoid(x)
@@ -224,53 +195,6 @@ class MoSca(nn.Module):
     @property
     def node_sigma(self):
         return self.sig_act(self._node_sigma_logit)
-
-    @classmethod
-    def load_from_ckpt(
-        cls,
-        ckpt,
-        device=torch.device("cuda:0"),
-    ):
-        logging.info(f"Loading MoSca from ckpt to {device}")
-        node_xyz = ckpt["_node_xyz"]
-        node_certain = ckpt["_node_certain"]
-        node_grouping = ckpt["_node_grouping"]
-        node_sigma_logit = ckpt["_node_sigma_logit"]
-        skinning_k = ckpt["skinning_k"]
-        # ! handle the old version
-        if "blending_method" not in ckpt.keys():
-            logging.warning("Old ckpt, set blending_method to 0 (DQB)")
-            ckpt["blending_method"] = torch.tensor(0)
-        if "break_topo_between_group" not in ckpt.keys():
-            ckpt["break_topo_between_group"] = torch.tensor(True)
-        unique_grouping = torch.unique(node_grouping)
-        if "unique_grouping" not in ckpt.keys():
-            ckpt["unique_grouping"] = torch.unique(node_grouping)
-        else:
-            if len(unique_grouping) < len(ckpt["unique_grouping"]):
-                # ! this bug is fixed in later version, but to load old ckpt, still handle here
-                ckpt["unique_grouping"] = unique_grouping
-        if "mlevle_detach_nn_flag" not in ckpt.keys():
-            # old ckpt
-            ckpt["mlevel_detach_nn_flag"] = torch.tensor(True)
-        if "mlevel_detach_self_flag" not in ckpt.keys():
-            # old ckpt
-            ckpt["mlevel_detach_self_flag"] = torch.tensor(False)
-        if "w_corr_maintain_sum_flag" not in ckpt.keys():
-            # old ckpt
-            ckpt["w_corr_maintain_sum_flag"] = torch.tensor(False)
-
-        scf = cls(
-            node_xyz=node_xyz,
-            node_certain=node_certain,
-            node_grouping=node_grouping,
-            node_sigma_logit=node_sigma_logit,
-            skinning_k=skinning_k,
-        )
-        scf.load_state_dict(ckpt, strict=True)
-        scf.set_skinning_method()
-        scf.to(device)
-        return scf
 
     def set_multi_level(
         self,
@@ -284,7 +208,7 @@ class MoSca(nn.Module):
             self.mlevel_list = mlevel_list
             self.mlevel_k_list = mlevel_k_list
             self.mlevel_w_list = mlevel_w_list
-            logging.info(
+            logger.info(
                 f"Set MoSca with multi-level arap topo reg with level-list={self.mlevel_list}, k-list={self.mlevel_k_list}, w-list={self.mlevel_w_list}"
             )
         else:
@@ -311,7 +235,7 @@ class MoSca(nn.Module):
 
         # update the D_topo
         self._D_topo = _compute_curve_topo_dist_(
-            curve_xyz=self._node_xyz,
+            curve_xyz=self.node_xyz,
             curve_mask=None,
             top_k=self.topo_dist_top_k,
             max_subsample_T=self.topo_sample_T,
@@ -371,14 +295,14 @@ class MoSca(nn.Module):
         new_D = None
         if append_M > 0:
             bottom = __query_distance_to_curve__(
-                q_curve_xyz=self._node_xyz[:, old_M:],
-                b_curve_xyz=self._node_xyz[:, :old_M],
+                q_curve_xyz=self.node_xyz[:, old_M:],
+                b_curve_xyz=self.node_xyz[:, :old_M],
                 top_k=self.topo_dist_top_k,
                 max_subsample_T=self.topo_sample_T,
             )
             square = __query_distance_to_curve__(
-                q_curve_xyz=self._node_xyz[:, old_M:],
-                b_curve_xyz=self._node_xyz[:, old_M:],
+                q_curve_xyz=self.node_xyz[:, old_M:],
+                b_curve_xyz=self.node_xyz[:, old_M:],
                 top_k=self.topo_dist_top_k,
                 max_subsample_T=self.topo_sample_T,
             )
@@ -438,7 +362,7 @@ class MoSca(nn.Module):
         unique_group_id = torch.unique(self._node_grouping)
         if len(unique_group_id) == 1 or not self.break_topo_between_group:
             self._D_topo = _compute_curve_topo_dist_(
-                curve_xyz=self._node_xyz,
+                curve_xyz=self.node_xyz,
                 curve_mask=curve_mask,
                 top_k=self.topo_dist_top_k,
                 max_subsample_T=self.topo_sample_T,
@@ -451,7 +375,7 @@ class MoSca(nn.Module):
                 mask = self._node_grouping == gid
                 mask2d = mask[:, None] & mask[None]
                 _D = _compute_curve_topo_dist_(
-                    curve_xyz=self._node_xyz[:, mask],
+                    curve_xyz=self.node_xyz[:, mask],
                     curve_mask=curve_mask[:, mask] if curve_mask is not None else None,
                     top_k=self.topo_dist_top_k,
                     max_subsample_T=self.topo_sample_T,
@@ -492,98 +416,17 @@ class MoSca(nn.Module):
         for l, w in zip(self.mlevel_list, self.multilevel_arap_dist_list):
             multilevel_arap_topo_w.append(w < topo_th * l)
             if verbose:
-                logging.info(
+                logger.info(
                     f"MultiRes l={l} {multilevel_arap_topo_w[-1].float().mean() * 100.0:.2f}% valid edges"
                 )
         self.multilevel_arap_topo_w = multilevel_arap_topo_w
-
-    def warp(
-        self,
-        attach_node_ind,
-        query_xyz,
-        query_tid,
-        target_tid,
-        query_dir=None,
-        skinning_w_corr=None,
-        dyn_o_flag=False,
-    ):
-        # query_xyz: (N, 3) in live world frame, time: N,
-        # query_dir: (N,3,C), attach_node_ind: N, must specify outside which curve is the nearest, so the topology is decided there
-        # note, the query_tid and target_tid can be different for each query
-
-        # * check
-        if isinstance(query_tid, int) or query_tid.ndim == 0:
-            query_tid = torch.ones_like(query_xyz[:, 0]).long() * query_tid
-        N = len(query_tid)
-        assert len(query_xyz) == N and query_xyz.shape == (N, 3)
-        if query_dir is not None:
-            assert query_dir.shape[:2] == (N, 3) and query_dir.ndim == 3
-        if isinstance(target_tid, int) or target_tid.ndim == 0:
-            target_tid = target_tid * torch.ones_like(query_tid)
-
-        # * identify skinning weights
-        sk_ind, sk_w, sk_w_sum, sk_ref_node_xyz, sk_ref_node_quat = (
-            self.get_skinning_weights(
-                query_xyz=query_xyz,
-                query_t=query_tid,
-                attach_ind=attach_node_ind,
-                skinning_weight_correction=skinning_w_corr,
-            )
-        )
-
-        # * blending
-        sk_dst_node_xyz, sk_dst_node_quat = self.get_async_knns(target_tid, sk_ind)
-        if dyn_o_flag:
-            dyn_o = torch.clamp(sk_w_sum, min=0.0, max=1.0)
-        else:
-            dyn_o = torch.ones_like(sk_w_sum) * (1.0 - DQ_EPS)
-        ret_xyz, ret_dir = self.__BLEND_FUNC__(
-            sk_w=sk_w,
-            src_xyz=query_xyz,
-            src_R=query_dir,
-            sk_src_node_xyz=sk_ref_node_xyz,
-            sk_src_node_quat=sk_ref_node_quat,
-            sk_dst_node_xyz=sk_dst_node_xyz,
-            sk_dst_node_quat=sk_dst_node_quat,
-            dyn_o=dyn_o,
-        )
-        return ret_xyz, ret_dir
-
-    def fast_warp(
-        self,
-        target_tid,
-        # all below are baked
-        sk_ind,
-        sk_w,
-        sk_ref_node_xyz,
-        sk_ref_node_quat,
-        dyn_o,
-        query_xyz,
-        query_dir,
-    ):
-        # query_xyz: (N, 3) in live world frame, time: N,
-        # query_dir: (N,3,C), attach_node_ind: N, must specify outside which curve is the nearest, so the topology is decided there
-        # note, the query_tid and target_tid can be different for each query
-        sk_dst_node_xyz = self._node_xyz[target_tid][sk_ind]
-        sk_dst_node_quat = self._node_rotation[target_tid][sk_ind]
-        ret_xyz, ret_dir = self.__BLEND_FUNC__(
-            sk_w=sk_w,
-            src_xyz=query_xyz,
-            src_R=query_dir,
-            sk_src_node_xyz=sk_ref_node_xyz,
-            sk_src_node_quat=sk_ref_node_quat,
-            sk_dst_node_xyz=sk_dst_node_xyz,
-            sk_dst_node_quat=sk_dst_node_quat,
-            dyn_o=dyn_o,
-        )
-        return ret_xyz, ret_dir
 
     def get_async_knns(self, t, knn_ind):
         assert t.ndim == 1 and knn_ind.ndim == 2 and len(t) == len(knn_ind)
         # self._node_XXXX[t,knn_ind]
         with torch.no_grad():
             flat_sk_ind = t[:, None] * self.M + knn_ind
-        sk_ref_node_xyz = self._node_xyz.reshape(-1, 3)[flat_sk_ind, :]  # N,K,3
+        sk_ref_node_xyz = self.node_xyz.reshape(-1, 3)[flat_sk_ind, :]  # N,K,3
         sk_ref_node_quat = self._node_rotation.reshape(-1, 4)[flat_sk_ind, :]  # N,K,4
         return sk_ref_node_xyz, sk_ref_node_quat
 
@@ -609,7 +452,7 @@ class MoSca(nn.Module):
         sk_mask = self.topo_knn_mask[attach_ind]
 
         if isinstance(query_t, int) or query_t.ndim == 0:
-            sk_ref_node_xyz = self._node_xyz[query_t][sk_ind]
+            sk_ref_node_xyz = self.node_xyz[query_t][sk_ind]
             sk_ref_node_quat = self._node_rotation[query_t][sk_ind]
         else:
             sk_ref_node_xyz, sk_ref_node_quat = self.get_async_knns(query_t, sk_ind)
@@ -651,7 +494,7 @@ class MoSca(nn.Module):
         if resample_ind is None:
             resample_ind = resample_curve(
                 D=_compute_curve_topo_dist_(
-                    self._node_xyz,
+                    self.node_xyz,
                     curve_mask=self._node_certain if use_mask else None,
                     top_k=self.topo_dist_top_k,
                     max_subsample_T=self.topo_sample_T,
@@ -666,11 +509,11 @@ class MoSca(nn.Module):
             )
             self.update_topology()
             return torch.arange(self.M).to(resample_ind)
-        new_node_xyz = self._node_xyz[:, resample_ind]
+        new_node_xyz = self.node_xyz[:, resample_ind]
         new_node_quat = self._node_rotation[:, resample_ind]
         new_node_sigma_logit = self._node_sigma_logit[resample_ind]
         with torch.no_grad():
-            self._node_xyz = nn.Parameter(new_node_xyz)
+            self.node_xyz = nn.Parameter(new_node_xyz)
             self._node_rotation = nn.Parameter(new_node_quat)
             self._node_sigma_logit = nn.Parameter(new_node_sigma_logit)
             self._node_certain = self._node_certain[:, resample_ind]
@@ -706,7 +549,7 @@ class MoSca(nn.Module):
         start_t = time.time()
         while len(new_node_xyz) > 0:
             # identify the nearest chunk_size nodes to append and remove it from the new_node attrs
-            existing_node_xyz = self._node_xyz[new_tid]
+            existing_node_xyz = self.node_xyz[new_tid]
             dist_sq, nn_exsiting_ind, _ = knn_points(
                 new_node_xyz[None], existing_node_xyz[None], K=1
             )
@@ -724,7 +567,7 @@ class MoSca(nn.Module):
             # no need parallel, this is super fast for the loop
             for _t in tqdm(range(self.T)):
                 _, nearest_node_ind, _ = knn_points(
-                    working_node_xyz[None], self._node_xyz[new_tid, None], K=1
+                    working_node_xyz[None], self.node_xyz[new_tid, None], K=1
                 )
                 nearest_node_ind = nearest_node_ind[0, :, 0]
                 working_node_xyz_t, working_node_fr_t = self.warp(
@@ -778,7 +621,7 @@ class MoSca(nn.Module):
         }
         spec = {"node_xyz": 1, "node_rotation": 1}
         optimizable_tensors = cat_tensors_to_optimizer(optimizer, d, spec)
-        self._node_xyz = optimizable_tensors["node_xyz"]
+        self.node_xyz = optimizable_tensors["node_xyz"]
         self._node_rotation = optimizable_tensors["node_rotation"]
         self._node_sigma_logit = optimizable_tensors["node_sigma"]
 
@@ -804,7 +647,7 @@ class MoSca(nn.Module):
             ~node_prune_mask,
             specific_names=spec,
         )
-        self._node_xyz = optimizable_tensors["node_xyz"]
+        self.node_xyz = optimizable_tensors["node_xyz"]
         self._node_rotation = optimizable_tensors["node_rotation"]
         self._node_sigma_logit = optimizable_tensors["node_sigma"]
         logging.info(
@@ -819,162 +662,6 @@ class MoSca(nn.Module):
     # * reg
     ###############################################################
 
-    def compute_vel_acc_loss(
-        self, tids=None, detach_mask=None, reduce_type="mean", square=False
-    ):
-        if tids is None:
-            tids = torch.arange(self.T).to(self.device)
-        assert tids.max() <= self.T - 1
-        xyz = self._node_xyz[tids]
-        R_wi = q2R(self._node_rotation[tids])
-        if detach_mask is not None:
-            detach_mask = detach_mask.float()[:, None, None]
-            xyz = xyz.detach() * detach_mask + xyz * (1 - detach_mask)
-            R_wi = (
-                R_wi.detach() * detach_mask[..., None]
-                + R_wi * (1 - detach_mask)[..., None]
-            )
-        xyz_vel, ang_vel, xyz_acc, ang_acc = compute_vel_acc(xyz, R_wi)
-        if square:
-            xyz_vel, ang_vel, xyz_acc, ang_acc = (
-                xyz_vel**2,
-                ang_vel**2,
-                xyz_acc**2,
-                ang_acc**2,
-            )
-        if reduce_type == "mean":
-            loss_p_vel, loss_q_vel = xyz_vel.mean(), ang_vel.mean()
-            loss_p_acc, loss_q_acc = xyz_acc.mean(), ang_acc.mean()
-        elif reduce_type == "sum":
-            loss_p_vel, loss_q_vel = xyz_vel.sum(), ang_vel.sum()
-            loss_p_acc, loss_q_acc = xyz_acc.sum(), ang_acc.sum()
-        else:
-            raise NotImplementedError()
-        return loss_p_vel, loss_q_vel, loss_p_acc, loss_q_acc
-
-    def compute_velocity_acceleration_loss(
-        self, time_indices=None, detach_mask=None, reduce_type="mean", square=False
-    ):
-        if time_indices is None:
-            time_indices = torch.arange(self.total_frames).to(self.device)
-        assert time_indices.max() <= self.total_frames - 1
-
-        xyz_coordinates = self._node_xyz[time_indices]
-        rotation_world_to_inertial = q2R(self._node_rotation[time_indices])
-
-        if detach_mask is not None:
-            detach_mask = detach_mask.float()[:, None, None]
-            xyz_coordinates = (
-                xyz_coordinates.detach() * detach_mask
-                + xyz_coordinates * (1 - detach_mask)
-            )
-            rotation_world_to_inertial = (
-                rotation_world_to_inertial.detach() * detach_mask[..., None]
-                + rotation_world_to_inertial * (1 - detach_mask)[..., None]
-            )
-
-        xyz_velocity, angular_velocity, xyz_acceleration, angular_acceleration = (
-            compute_vel_acc(xyz_coordinates, rotation_world_to_inertial)
-        )
-
-        if square:
-            xyz_velocity, angular_velocity, xyz_acceleration, angular_acceleration = (
-                xyz_velocity**2,
-                angular_velocity**2,
-                xyz_acceleration**2,
-                angular_acceleration**2,
-            )
-
-        if reduce_type == "mean":
-            loss_position_velocity, loss_orientation_velocity = (
-                xyz_velocity.mean(),
-                angular_velocity.mean(),
-            )
-            loss_position_acceleration, loss_orientation_acceleration = (
-                xyz_acceleration.mean(),
-                angular_acceleration.mean(),
-            )
-        elif reduce_type == "sum":
-            loss_position_velocity, loss_orientation_velocity = (
-                xyz_velocity.sum(),
-                angular_velocity.sum(),
-            )
-            loss_position_acceleration, loss_orientation_acceleration = (
-                xyz_acceleration.sum(),
-                angular_acceleration.sum(),
-            )
-        else:
-            raise NotImplementedError()
-
-        return (
-            loss_position_velocity,
-            loss_orientation_velocity,
-            loss_position_acceleration,
-            loss_orientation_acceleration,
-        )
-
-    def compute_arap_loss(
-        self,
-        tids=None,
-        temporal_diff_weight=[0.75, 0.25],
-        temporal_diff_shift=[1, 4],
-        # * used for only change the latest append frame during appending loop
-        detach_tids_mask=None,
-        reduce_type="mean",
-        square=False,
-    ):
-        assert len(temporal_diff_weight) == len(temporal_diff_shift)
-        if tids is None:
-            tids = torch.arange(self.T).to(self.device)
-        assert tids.max() <= self.T - 1
-        xyz = self._node_xyz[tids]
-        R_wi = q2R(self._node_rotation[tids])
-        topo_ind = self.topo_knn_ind
-        topo_w = self.topo_knn_mask.float()  # N,K, binary mask
-        topo_w = topo_w / (topo_w.sum(dim=-1, keepdim=True) + 1e-6)  # normalize
-        local_coord = get_local_coord(xyz, topo_ind, R_wi)
-
-        if detach_tids_mask is not None:
-            detach_tids_mask = detach_tids_mask.float()
-            local_coord = (
-                local_coord.detach() * detach_tids_mask[:, None, None, None]
-                + local_coord * (1 - detach_tids_mask)[:, None, None, None]
-            )
-        loss_coord, loss_len, _, _ = compute_arap(
-            local_coord,
-            topo_w,
-            temporal_diff_shift,
-            temporal_diff_weight,
-            reduce=reduce_type,
-            square=square,
-        )
-
-        # topo: speed up this
-        if self.mlevel_arap_flag:
-            for l in range(len(self.multilevel_arap_edge_list)):
-                # ! in this case, self is from the larger set
-                _local_coord = get_local_coord(
-                    xyz,
-                    self.multilevel_arap_edge_list[l][:, 1:],
-                    R_wi,
-                    self_ind=self.multilevel_arap_edge_list[l][:, :1],
-                    detach_nn=self.mlevel_detach_nn_flag.item(),
-                    detach_self=self.mlevel_detach_self_flag.item(),
-                )  # T,N,1,3
-
-                _loss_coord, _loss_len, _, _ = compute_arap(
-                    _local_coord,
-                    self.multilevel_arap_topo_w[l][:, None],
-                    temporal_diff_shift,
-                    temporal_diff_weight,
-                    reduce=reduce_type,
-                    square=square,
-                )
-                loss_coord = loss_coord + _loss_coord * self.mlevel_w_list[l]
-                loss_len = loss_len + _loss_len * self.mlevel_w_list[l]
-
-        return loss_coord, loss_len
-
     def get_optimizable_list(
         self,
         lr_np=0.0001,
@@ -983,7 +670,7 @@ class MoSca(nn.Module):
     ):
         ret = []
         if lr_np is not None:
-            ret.append({"params": [self._node_xyz], "lr": lr_np, "name": "node_xyz"})
+            ret.append({"params": [self.node_xyz], "lr": lr_np, "name": "node_xyz"})
         if lr_nq is not None:
             ret.append(
                 {"params": [self._node_rotation], "lr": lr_nq, "name": "node_rotation"}
@@ -1001,10 +688,10 @@ class MoSca(nn.Module):
     @torch.no_grad()
     def mask_xyz_grad(self, mask):
         # for init stage maintain the observed xyz unchanged
-        assert mask.shape == self._node_xyz.shape[:2]
-        assert self._node_xyz.grad is not None
-        mask = mask.to(self._node_xyz)
-        self._node_xyz.grad = self._node_xyz.grad * mask[..., None]
+        assert mask.shape == self.node_xyz.shape[:2]
+        assert self.node_xyz.grad is not None
+        mask = mask.to(self.node_xyz)
+        self.node_xyz.grad = self.node_xyz.grad * mask[..., None]
         return
 
     ##################################################
@@ -1040,7 +727,7 @@ class MoSca(nn.Module):
                             node_mask = torch.ones_like(self._node_grouping).bool()
                         _, nearest_node_ind_gid, _ = knn_points(
                             query_xyz[mask][mask_gid][None],
-                            self._node_xyz[t][node_mask][None],
+                            self.node_xyz[t][node_mask][None],
                             K=1,
                         )
                         nearest_node_ind_gid = nearest_node_ind_gid[0, :, 0]
@@ -1051,7 +738,7 @@ class MoSca(nn.Module):
                 ret_id[mask] = nearest_node_ind.int()
             else:
                 _, nearest_node_ind, _ = knn_points(
-                    query_xyz[mask][None], self._node_xyz[t, None], K=1
+                    query_xyz[mask][None], self.node_xyz[t, None], K=1
                 )
                 ret_id[mask] = nearest_node_ind[0, :, 0].int()
         assert (ret_id >= 0).all()
@@ -1065,7 +752,7 @@ class MoSca(nn.Module):
         for new_tid in tqdm(range(1, self.T)):
             # ! do to the first frame!
 
-            src_xyz, dst_xyz = self._node_xyz[new_tid - 1], self._node_xyz[new_tid]
+            src_xyz, dst_xyz = self.node_xyz[new_tid - 1], self.node_xyz[new_tid]
 
             # DEBUG: seems the old version does not normalize the centroid, may affect??
             # DEBUG: the old version has bug, seems the w is not used anymore ...
@@ -1118,7 +805,7 @@ class MoSca(nn.Module):
             left_t = self._t_list[self._t_list <= new_t].max()
             left_ind = (self._t_list == left_t).float().argmax()
             assert left_ind >= 0 and left_ind < self.T
-            l_xyz, l_quat = self._node_xyz[left_ind], self._node_rotation[left_ind]
+            l_xyz, l_quat = self.node_xyz[left_ind], self._node_rotation[left_ind]
             if left_t == new_t:
                 new_xyz_list.append(l_xyz)
                 new_quat_list.append(l_quat)
@@ -1127,7 +814,7 @@ class MoSca(nn.Module):
             assert left_t < new_t < right_t
             right_ind = (self._t_list == right_t).float().argmax()
             assert right_ind >= 0 and right_ind < self.T
-            r_xyz, r_quat = self._node_xyz[right_ind], self._node_rotation[right_ind]
+            r_xyz, r_quat = self.node_xyz[right_ind], self._node_rotation[right_ind]
             if right_t == new_t:
                 new_xyz_list.append(r_xyz)
                 new_quat_list.append(r_quat)
@@ -1156,7 +843,7 @@ class MoSca(nn.Module):
         new_xyz_list = torch.stack(new_xyz_list, 0)
         new_quat_list = torch.stack(new_quat_list, 0)
 
-        self._node_xyz.data = new_xyz_list
+        self.node_xyz.data = new_xyz_list
         self._node_rotation.data = new_quat_list
         assert new_node_certain.shape[1] == self.M and len(new_tids) == len(
             new_node_certain
@@ -1185,73 +872,6 @@ def __compute_delta_Rt_ji__(R_wi, t_wi, R_wj, t_wj):
     R_ji = torch.einsum("nsij,nskj->nsik", R_wj, R_wi)
     t_ji = t_wj - torch.einsum("nsij,nsj->nsi", R_ji, t_wi)
     return R_ji, t_ji
-
-
-def __DQB_warp__(
-    sk_w,
-    src_xyz,
-    sk_src_node_xyz,
-    sk_src_node_quat,
-    sk_dst_node_xyz,
-    sk_dst_node_quat,
-    dyn_o,
-    src_R=None,
-):
-    sk_R_tq, sk_t_tq = __compute_delta_Rt_ji__(
-        R_wj=q2R(sk_dst_node_quat),
-        t_wj=sk_dst_node_xyz,
-        R_wi=q2R(sk_src_node_quat),
-        t_wi=sk_src_node_xyz,
-    )
-    sk_dq_tq = Rt2dq(sk_R_tq, sk_t_tq)  # N,K,8
-    # * Dual Quaternion skinning
-    dq = torch.einsum("nki,nk->ni", sk_dq_tq, sk_w)  # N,8
-    # use dyn mask to blend a unit dq into
-    unit_dq = torch.Tensor([1, 0, 0, 0, 0, 0, 0, 0]).to(sk_w)[None].expand(len(dq), -1)
-    dq = dq * dyn_o[:, None] + unit_dq * (1 - dyn_o)[:, None]
-    with torch.no_grad():
-        assert dq.max() < 1e6, f"{dq.max()}"
-    dq = dq2unitdq(dq)
-    R_tq, t_tq = dq2Rt(dq)  # N,3,3; N,3
-    # * apply the transformation to the leaf
-    mu_dst = torch.einsum("nij,nj->ni", R_tq, src_xyz) + t_tq
-    if src_R is not None:
-        fr_dst = torch.einsum("nij,njk->nik", R_tq, src_R)
-    else:
-        fr_dst = None
-    return mu_dst, fr_dst
-
-
-def __LBS_warp__(
-    sk_w,
-    src_xyz,
-    sk_src_node_xyz,
-    sk_src_node_quat,
-    sk_dst_node_xyz,
-    sk_dst_node_quat,
-    dyn_o,
-    src_R=None,
-):
-    sk_R_tq, sk_t_tq = __compute_delta_Rt_ji__(
-        R_wj=q2R(sk_dst_node_quat),
-        t_wj=sk_dst_node_xyz,
-        R_wi=q2R(sk_src_node_quat),
-        t_wi=sk_src_node_xyz,
-    )
-    sk_quat_tq = matrix_to_quaternion(sk_R_tq)
-    quat_tq = torch.einsum("nki,nk->ni", sk_quat_tq, sk_w)  # N,4
-    t_tq = torch.einsum("nki,nk->ni", sk_t_tq, sk_w)  # N,3
-    q_unit = torch.Tensor([1, 0, 0, 0]).to(sk_w)[None]
-    quat_tq = quat_tq * dyn_o[:, None] + (1 - dyn_o)[:, None] * q_unit
-    t_tq = t_tq * dyn_o[:, None]
-    R_tq = q2R(quat_tq)
-    mu_dst = torch.einsum("nij,nj->ni", R_tq, src_xyz) + t_tq
-    if src_R is not None:
-        fr_dst = torch.einsum("nij,njk->nik", R_tq, src_R)
-    else:
-        fr_dst = None
-    # logging.warning("Should NOT use LBS!")
-    return mu_dst, fr_dst
 
 
 ##################################################################################
@@ -1485,81 +1105,6 @@ def q2R(q):
     nq = F.normalize(q, dim=-1, p=2)
     R = quaternion_to_matrix(nq)
     return R
-
-
-def compute_vel_acc(xyz, R_wi):
-    xyz_vel = (xyz[1:] - xyz[:-1]).norm(dim=-1)
-    xyz_acc = (xyz[2:] - 2 * xyz[1:-1] + xyz[:-2]).norm(dim=-1)
-
-    delta_R = torch.einsum("tnij,tnkj->tnik", R_wi[1:], R_wi[:-1])
-    ang_vel = matrix_to_axis_angle(delta_R).norm(dim=-1)
-    ang_acc_mag = abs(ang_vel[1:] - ang_vel[:-1])
-    return xyz_vel, ang_vel, xyz_acc, ang_acc_mag
-
-
-def compute_arap(
-    local_coord,  # T,N,K,3
-    topo_w,  # N,K
-    temporal_diff_shift,
-    temporal_diff_weight,
-    reduce="mean",
-    square=False,
-):
-    local_coord_len = local_coord.norm(dim=-1, p=2)  # T,N,K
-    # the coordinate should be similar
-    # the metric should be similar
-    loss_coord, loss_len = (
-        torch.tensor(0.0).to(local_coord),
-        torch.tensor(0.0).to(local_coord),
-    )
-    for shift, _w in zip(temporal_diff_shift, temporal_diff_weight):
-        diff_coord = (local_coord[:-shift] - local_coord[shift:]).norm(dim=-1)
-        if len(diff_coord) < 1:
-            continue
-        diff_len = (local_coord_len[:-shift] - local_coord_len[shift:]).abs()
-        if square:
-            logging.warning(
-                "Use square loss, but initial exp shows non-square loss is better!"
-            )
-            diff_coord = diff_coord**2
-            diff_len = diff_len**2
-        diff_coord = (diff_coord * topo_w[None]).sum(-1)
-        diff_len = (diff_len * topo_w[None]).sum(-1)
-        if reduce == "sum":
-            loss_coord = loss_coord + _w * diff_coord.sum()
-            loss_len = loss_len + _w * diff_len.sum()
-        elif reduce == "mean":
-            loss_coord = loss_coord + _w * diff_coord.mean()
-            loss_len = loss_len + _w * diff_len.mean()
-        else:
-            raise NotImplementedError()
-    loss_coord_global = (local_coord.std(0) * topo_w[..., None]).sum()
-    loss_len_global = (local_coord_len.std(0) * topo_w).sum()
-    assert not torch.isnan(loss_coord) and not torch.isnan(loss_len)
-    return loss_coord, loss_len, loss_coord_global, loss_len_global
-
-
-def get_local_coord(
-    xyz, topo_ind, R_wi, self_ind=None, detach_self=False, detach_nn=False
-):
-    assert not (detach_self and detach_nn), "detach_self and detach_nn are exclusive"
-    # * self will be expressed in nn coordinate frame
-    # xyz: T,N,3; topo_ind: N,K; R_wi: T,N,3,3
-    nn_xyz = xyz[:, topo_ind, :]
-    nn_R_wi = R_wi[:, topo_ind, :]
-    if self_ind is None:
-        self_xyz = xyz[:, :, None]  # T,N,1,3
-    else:
-        assert self_ind.shape == topo_ind.shape
-        self_xyz = xyz[:, self_ind, :]
-    if detach_self:
-        self_xyz = self_xyz.detach()
-    if detach_nn:
-        nn_xyz = nn_xyz.detach()
-    local_coord = torch.einsum(
-        "tnkji,tnkj->tnki", nn_R_wi, self_xyz - nn_xyz
-    )  # T,N,K,3
-    return local_coord
 
 
 @torch.no_grad()

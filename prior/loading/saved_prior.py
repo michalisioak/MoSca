@@ -61,9 +61,9 @@ class Saved2D(nn.Module):
         self.normalize_depth()
         self.recompute_dep_mask()
         self.load_track()
-        self.rescale_perframe_depth_from_bundle(
-            bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
-        )
+        # self.rescale_perframe_depth_from_bundle(
+        #     bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
+        # )
         # self.load_vos() TODO
 
     @torch.no_grad

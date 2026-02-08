@@ -605,26 +605,3 @@
 #             assert osp.exists(depth_fn), f"Depth not found in {dep_dir} or {depth_fn}"
 #             dep_list = np.load(depth_fn)["dep"]
 #         return dep_list
-
-
-# if __name__ == "__main__":
-#     from preprocessor_utils import load_imgs, convert_from_mp4
-
-#     img_list, img_fns = load_imgs(f"../data/davis/train/images")
-#     t_list = [i for i in range(len(img_fns))]
-
-#     processor = MoCaPrep()
-
-#     processor.process(
-#         t_list=t_list,
-#         img_list=img_list,
-#         img_name_list=img_fns,
-#         save_dir=f"../data/debug/train",
-#     )
-
-#     # name="breakdance-flare"
-#     # img_list, img_fns = processor.load_imgs(f"../data/davis/{name}/images")
-#     # processor.process(img_list, img_fns, f"../data/davis/{name}/")
-
-#     # img_list, img_fns = processor.load_imgs(f"../data/dragon/images")
-#     # processor.process(img_list, img_fns, f"../data/dragon")

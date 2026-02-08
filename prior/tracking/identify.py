@@ -28,8 +28,8 @@ def identify_tracks(
             make_continious_pair_list(tracks.shape[0]),
             tracks,
             torch.ones(tracks.shape[:2], dtype=torch.bool, device=tracks.device),
-            H=height,
-            W=width,
+            height=height,
+            width=width,
         )
     else:
         raise ValueError(f"Unknown track identification method: {cfg.method}")

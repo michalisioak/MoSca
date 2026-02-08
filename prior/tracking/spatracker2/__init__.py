@@ -307,14 +307,14 @@ if __name__ == "__main__":
     cli_cfg = OmegaConf.from_dotlist([arg.lstrip("--") for arg in unknown])
     cfg = OmegaConf.merge(cfg, cli_cfg)
     model = get_spatracker2("cuda")
-    save_name = f"uniform_dep=depth_anything"
+    save_name = "uniform_dep=depth_anything"
     img_dir = osp.join(args.ws, "images")
     img_fns = sorted(
         [it for it in os.listdir(img_dir) if it.endswith(".png") or it.endswith(".jpg")]
     )
     img_list = [imageio.imread(osp.join(img_dir, it))[..., :3] for it in img_fns]
     img_list = np.asarray(img_list)
-    name = f"depth_anything_depth"
+    name = "depth_anything_depth"
     dep_dir = osp.join(args.ws, name)
     if osp.isdir(dep_dir):
         dep_fns = sorted([osp.join(dep_dir, fn) for fn in os.listdir(dep_dir)])

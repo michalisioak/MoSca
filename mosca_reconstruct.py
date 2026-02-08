@@ -78,7 +78,7 @@ def photometric_warmup(ws, log_path, fit_cfg):
         return
     device = torch.device("cuda:0")
     logging.info(
-        f"First run static bg GS warm up to save time before joint optimization"
+        "First run static bg GS warm up to save time before joint optimization"
     )
 
     s2d = (

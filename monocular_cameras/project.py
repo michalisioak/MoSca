@@ -1,9 +1,7 @@
 import torch
 
-from cameras import MonocularCameras
 
-
-def project(xyz: torch.Tensor, cams: MonocularCameras, th: float = 1e-5):
+def project(xyz: torch.Tensor, rel_focal, cxcy_ratio, th: float = 1e-5):
     assert xyz.shape[-1] == 3
     xy = xyz[..., :2]
     z = xyz[..., 2:]
@@ -17,7 +15,7 @@ def project(xyz: torch.Tensor, cams: MonocularCameras, th: float = 1e-5):
             z * (1 - z_close_mask) + (1.0 * th) * z_close_mask
         )  # ! always clamp to positive
         assert not (abs(z) < th).any()
-    rel_f = torch.as_tensor(cams.rel_focal).to(xyz)
-    cxcy = torch.as_tensor(cams.cxcy_ratio).to(xyz) * 2.0 - 1.0
+    rel_f = torch.as_tensor(rel_focal).to(xyz)
+    cxcy = torch.as_tensor(cxcy_ratio).to(xyz) * 2.0 - 1.0
     uv = (xy * rel_f[None] / z) + cxcy[None, :]
     return uv  # [-1,1]

@@ -5,7 +5,7 @@ import kornia
 def compute_ssim_loss(
     gt_rgb: torch.Tensor,
     pred_rgb: torch.Tensor,
-    sup_mask: torch.Tensor,
+    sup_mask: torch.Tensor | None = None,
     window_size: int = 11,
     max_val: float = 1.0,
 ):
@@ -22,7 +22,7 @@ def compute_ssim_loss(
     Returns:
         Mean SSIM loss (1 - SSIM) over masked region
     """
-    sup_mask = sup_mask.float()
+    sup_mask = sup_mask.float() if sup_mask is not None else torch.ones_like(gt_rgb)
 
     # Prepare tensors for kornia (B, C, H, W format)
     pred_batch = pred_rgb.permute(2, 0, 1).unsqueeze(0)  # (1, 3, H, W)

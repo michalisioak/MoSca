@@ -4,10 +4,13 @@ import torch, numpy as np
 import os, sys, os.path as osp
 from tqdm import tqdm
 import logging, imageio
+
 # from pytorch3d.ops import knn_points
 from torch_geometric.nn import knn
 from matplotlib import cm
 import cv2
+
+from lib_prior.prior_loading import Saved2D
 
 sys.path.append(osp.dirname(osp.abspath(__file__)))
 
@@ -18,7 +21,7 @@ from robust_utils import positive_th_gaussian_decay
 
 
 def compute_static_ba(
-    s2d,
+    s2d: Saved2D,
     log_dir,
     s_track,
     s_track_valid_mask,
@@ -57,7 +60,6 @@ def compute_static_ba(
     #
     optimizer_class=torch.optim.Adam,
 ):
-    
     viz_dir = osp.join(log_dir, "static_ba_viz")
     os.makedirs(viz_dir, exist_ok=True)
 
@@ -169,7 +171,9 @@ def compute_static_ba(
         point_ref_to_every_frame = (
             torch.einsum("tij,snj->stni", R_cw, point_ref) + t_cw[None, :, None]
         )  # Src,Tgt,N,3
-        uv_src_to_every_frame = cams.project(point_ref_to_every_frame)  # Src,Tgt,N,3 # Mich maybey is it 2?
+        uv_src_to_every_frame = cams.project(
+            point_ref_to_every_frame
+        )  # Src,Tgt,N,3 # Mich maybey is it 2?
 
         # * robusitify the loss by down weight some curves
         with torch.no_grad():
@@ -317,8 +321,9 @@ def compute_static_ba(
             ]
         ):
             plt.subplot(1, 9, plt_i + 1)
-            _ = plt.plot(plt_pack[1]), plt.title(
-                plt_pack[0] + f" End={plt_pack[1][-1]:.6f}"
+            _ = (
+                plt.plot(plt_pack[1]),
+                plt.title(plt_pack[0] + f" End={plt_pack[1][-1]:.6f}"),
             )
             if plt_pack[0].startswith("loss"):
                 plt.yscale("log")
@@ -451,6 +456,7 @@ def deform_depth_map(
 #     ret = torch.einsum("nk, nkc->nc", w, value)
 #     return ret
 
+
 def spatial_interpolation_optimized(
     src_xyz, src_buffer, query_xyz, K=16, rbf_sigma_factor=0.333
 ):
@@ -520,7 +526,7 @@ def query_image_buffer_by_pix_int_coord(buffer, pixel_int_coordinate):
     return ret
 
 
-def prepare_track_homo_dep_rgb_buffers(s2d, track, track_mask, t_list):
+def prepare_track_homo_dep_rgb_buffers(s2d: Saved2D, track, track_mask, t_list):
     # track: T,N,2, track_mask: T,N
     device = track.device
     homo_list, ori_dep_list, rgb_list = [], [], []

@@ -123,8 +123,8 @@ def cotracker3(cfg: CoTrackerConfig, ws: str, device: str | None = None):
 
     save_tracks(
         img_list=img_list,
-        tracks=tracks.permute(1, 0, 2),  # N, T, 2
-        visibility=visibility.permute(1, 0),  # N, 1
+        tracks=tracks,  # T, N, 2
+        visibility=visibility,  # T, N, 1
         ws=ws,
         name=f"cotracker3_{postfix}",
         cfg=cfg,
