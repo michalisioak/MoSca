@@ -124,7 +124,7 @@ def compute_graph_energy(
     # compute all the best aligned
     T, M = homo_list.shape[:2]
     rel_focal = 2 * fov_to_focal(torch.deg2rad(fov))
-    cxcy_ratio = [0.5, 0.5]
+    cxcy_ratio = torch.tensor([0.5, 0.5])
     point_cam = backproject(
         homo_list.reshape(-1, 2), dep_list.reshape(-1), rel_focal, cxcy_ratio
     ).reshape(T, M, 3)

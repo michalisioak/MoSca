@@ -28,7 +28,7 @@ def static_reconstruct(
     s_tracks = torch.from_numpy(tracks_npz["s_tracks"]).to(device)
     s_visibility = torch.from_numpy(tracks_npz["s_visibility"]).to(device)
 
-    moca_solve(
+    return moca_solve(
         ws=ws,
         rgb=rgb,
         dep=dep,

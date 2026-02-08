@@ -36,8 +36,6 @@ def query_image_buffer_by_pix_int_coord(
     buffer: torch.Tensor, pixel_int_coordinate: torch.Tensor
 ):
     assert pixel_int_coordinate.ndim == 2 and pixel_int_coordinate.shape[-1] == 2
-    print(f"buffer shape: {buffer.shape}")
-    print(f"pixel_int_coordinate: {pixel_int_coordinate}")
     assert (pixel_int_coordinate[..., 0] >= 0).all()
     assert (pixel_int_coordinate[..., 0] < buffer.shape[1]).all()
     assert (pixel_int_coordinate[..., 1] >= 0).all()
@@ -95,6 +93,6 @@ def get_homo_coordinate_map(height: int, width: int):
     u, v = torch.meshgrid(
         torch.linspace(u_range[0], u_range[1], width),
         torch.linspace(v_range[0], v_range[1], height),
+        indexing="xy",
     )
-    uv = torch.stack([u, v], dim=-1)  # H,W,2
-    return uv
+    return torch.stack([u, v], dim=-1)  # H,W,2

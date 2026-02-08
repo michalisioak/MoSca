@@ -1,7 +1,12 @@
 import torch
 
 
-def project(xyz: torch.Tensor, rel_focal, cxcy_ratio, th: float = 1e-5):
+def project(
+    xyz: torch.Tensor,
+    rel_focal: torch.Tensor,
+    cxcy_ratio: torch.Tensor,
+    th: float = 1e-5,
+):
     assert xyz.shape[-1] == 3
     xy = xyz[..., :2]
     z = xyz[..., 2:]

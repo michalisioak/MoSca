@@ -81,7 +81,7 @@ def compute_static_ba(
     )
 
     if viz_video_rgb is not None:
-        logging.info(f"Viz BA points on each frame...")
+        logging.info("Viz BA points on each frame...")
         viz_frames = viz_ba_point(viz_video_rgb, s_track, s_track_valid_mask)
         imageio.mimsave(osp.join(log_dir, "BA_points.mp4"), viz_frames)
 

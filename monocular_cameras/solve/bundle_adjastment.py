@@ -3,7 +3,9 @@ import torch
 import os.path as osp
 from tqdm import tqdm
 from loguru import logger
+from monocular_cameras.backproject import backproject
 from monocular_cameras.cameras import MonocularCameras, CameraConfig
+from monocular_cameras.project import project
 from monocular_cameras.solve.buffer_utils import prepare_track_homo_dep_rgb_buffers
 from prior.depth.save import save_depth_list
 from prior.depth.viz import viz_depth_list
@@ -65,6 +67,7 @@ def compute_static_ba(
         )
         choice = torch.randperm(s_track.shape[1])[: cfg.max_num_of_tracks]
         s_track = s_track[:, choice]
+        track_mask = track_mask[:, choice]
 
     homo_list, dep_list, rgb_list = prepare_track_homo_dep_rgb_buffers(
         rgb=rgb, dep=dep, track=s_track, track_mask=track_mask
@@ -86,20 +89,8 @@ def compute_static_ba(
     param_scale.requires_grad_(True)
     param_depth_corr = torch.zeros_like(dep_list).clone()
     param_depth_corr.requires_grad_(True)
-    optim_list = cams.get_optimizable_list(cfg.camera)
-    if cfg.lr_dep_s is not None and cfg.lr_dep_s > 0:
-        optim_list.append(
-            {"params": [param_scale], "lr": cfg.lr_dep_s, "name": "cam_scale"}
-        )
-    if cfg.lr_dep_c is not None and cfg.lr_dep_c > 0:
-        optim_list.append(
-            {
-                "params": [param_depth_corr],
-                "lr": cfg.lr_dep_c,
-                "name": "depth_correction",
-            }
-        )
-    optimizer = optimizer_class(optim_list)
+    optimizer = cams.get_optimizer(cfg.camera)
+    assert optimizer is not None, "No need of static BA"
     scheduler = None
     s_track_valid_mask_w = track_mask.float()
     s_track_valid_mask_w = s_track_valid_mask_w / s_track_valid_mask_w.sum(0)
@@ -117,20 +108,8 @@ def compute_static_ba(
                 "Switch to Independent Camera Optimization and Start Scheduling"
             )
             cams.disable_delta()
-            optim_list = cams.get_optimizable_list(cfg.camera)
-            if cfg.lr_dep_s is not None and cfg.lr_dep_s > 0:
-                optim_list.append(
-                    {"params": [param_scale], "lr": cfg.lr_dep_s, "name": "cam_scale"}
-                )
-            if cfg.lr_dep_c is not None and cfg.lr_dep_c > 0:
-                optim_list.append(
-                    {
-                        "params": [param_depth_corr],
-                        "lr": cfg.lr_dep_c,
-                        "name": "dep_correction",
-                    }
-                )
-            optimizer = optimizer_class(optim_list)
+            optimizer = cams.get_optimizer(cfg.camera)
+            assert optimizer is not None
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimizer,
                 cfg.steps - cfg.switch_to_ind_step,
@@ -162,8 +141,10 @@ def compute_static_ba(
         point_ref_to_every_frame = (
             torch.einsum("tij,snj->stni", R_cw, point_ref) + t_cw[None, :, None]
         )  # Src,Tgt,N,3
-        uv_src_to_every_frame = cams.project(
-            point_ref_to_every_frame
+        uv_src_to_every_frame = project(
+            point_ref_to_every_frame,
+            rel_focal=cams.rel_focal,
+            cxcy_ratio=cams.cxcy_ratio,
         )  # Src,Tgt,N,3 # Mich maybey is it 2?
 
         # * robusitify the loss by down weight some curves
@@ -267,13 +248,13 @@ def compute_static_ba(
     torch.save(cams.state_dict(), osp.join(bundle_dir, "cams.pth"))
     dep = dep.clone() * dep_scale[:, None, None]
     save_depth_list(
-        dep_list=list(dep.cpu().numpy()),
+        dep_list=list(dep.detach().cpu().numpy()),
         ws=ws,
         name="bundle",
         # invalid_mask_list=(s_visibility == 0),
     )
     viz_depth_list(
-        depths=list(dep.cpu().numpy()),
+        depths=list(dep.detach().cpu().numpy()),
         ws=ws,
         name="bundle",
     )
@@ -289,7 +270,12 @@ def get_world_points(
     T, M = dep_list.shape
     if cam_t_list is None:
         cam_t_list = torch.arange(T).to(homo_list.device)
-    point_cam = cams.backproject(homo_list.reshape(-1, 2), dep_list.reshape(-1))
+    point_cam = backproject(
+        homo_list.reshape(-1, 2),
+        dep_list.reshape(-1),
+        rel_focal=cams.rel_focal,
+        cxcy_ratio=cams.cxcy_ratio,
+    )
     point_cam = point_cam.reshape(T, M, 3)
     R_wc, t_wc = cams.Rt_wc_list()
     R_wc, t_wc = R_wc[cam_t_list], t_wc[cam_t_list]
