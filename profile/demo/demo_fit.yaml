@@ -1,8 +1,8 @@
 exp_name: depth_anything_fit
 mode: wild
-dep_mode: depth_anything
-depth_dirname: depth_anything_depth
-tap_mode: bootstapir
+dep_mode: uni
+# depth_dirname: depth_anything_depth
+tap_mode: cotracker
 flow_mode: raft
 
 epi_th: 0.00003
@@ -45,7 +45,7 @@ gs_radius_max: 0.03
 gs_max_sph_order: 3
 
 # * Photo
-photo_total_steps: 8000
+photo_total_steps: 80000
 photo_skinning_corr_start_steps: 6000
 photo_lr_np: 0.0003
 photo_lr_nq: 0.0003

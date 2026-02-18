@@ -1,6 +1,10 @@
+from typing import Optional
 import torch
-from motion_scaffold import __compute_delta_Rt_ji__, q2R
+
 from utils3d.torch import matrix_to_quaternion
+
+from motion_scaffold.blending import __compute_delta_Rt_ji__
+from motion_scaffold.dualquat import q2R
 
 
 def __LBS_warp__(
@@ -12,7 +16,7 @@ def __LBS_warp__(
     sk_dst_node_quat,
     dyn_o,
     src_R=None,
-):
+) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
     sk_R_tq, sk_t_tq = __compute_delta_Rt_ji__(
         R_wj=q2R(sk_dst_node_quat),
         t_wj=sk_dst_node_xyz,

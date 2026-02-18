@@ -12,6 +12,7 @@ def warp(
     query_dir=None,
     skinning_w_corr=None,
     dyn_o_flag=False,
+    dq_eps: float = 0.001,
 ):
     # query_xyz: (N, 3) in live world frame, time: N,
     # query_dir: (N,3,C), attach_node_ind: N, must specify outside which curve is the nearest, so the topology is decided there
@@ -42,8 +43,8 @@ def warp(
     if dyn_o_flag:
         dyn_o = torch.clamp(sk_w_sum, min=0.0, max=1.0)
     else:
-        dyn_o = torch.ones_like(sk_w_sum) * (1.0 - DQ_EPS)
-    ret_xyz, ret_dir = scf.__BLEND_FUNC__(
+        dyn_o = torch.ones_like(sk_w_sum) * (1.0 - dq_eps)
+    ret_xyz, ret_dir = scf.blending_func(
         sk_w=sk_w,
         src_xyz=query_xyz,
         src_R=query_dir,

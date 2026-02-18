@@ -1,16 +1,22 @@
-import sys, os
+import sys, os, os.path as osp
 import torch_geometric.nn.pool as pyg_pool
 import numpy as np
+import scipy
 import torch
 from torch import nn
 import torch.nn.functional as F
 import logging
+import time
 from matplotlib import pyplot as plt
-from utils3d.torch import (
+from pytorch3d.transforms import (
+    matrix_to_axis_angle,
+    axis_angle_to_matrix,
     quaternion_to_matrix,
     matrix_to_quaternion,
 )
 from pytorch3d.ops import knn_points
+import open3d as o3d
+from tqdm import tqdm
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -53,7 +59,7 @@ class DynSCFGaussian(nn.Module):
 
     def __init__(
         self,
-        scf: MoSca,
+        scf: MoSca = None,
         max_scale=0.1,  # use sigmoid activation, can't be too large
         min_scale=0.0,
         max_sph_order=0,
@@ -80,14 +86,12 @@ class DynSCFGaussian(nn.Module):
         self.fast_inference_flag = False
         self.min_num_gs = min_num_gs
 
-        nn.Buffer()
-
         self.register_buffer("nn_fusion", torch.tensor(nn_fusion))
         logging.info(f"ED Model use default {nn_fusion} nearest frame fusion")
         self.register_buffer("dyn_o_flag", torch.tensor(dyn_o_flag).bool())
         if dyn_o_flag:
             logging.warning(
-                "Dynamic GS use Dyn_O, Far away points will have ID motion, the SE(3) field has an ambient motion I"
+                f"Dynamic GS use Dyn_O, Far away points will have ID motion, the SE(3) field has an ambient motion I"
             )
 
         self.scf = scf
@@ -143,6 +147,7 @@ class DynSCFGaussian(nn.Module):
         # ! dangerous flags
         # * for viz the cate color
         self.return_cate_colors_flag = False
+
         return
 
     @classmethod
@@ -191,7 +196,7 @@ class DynSCFGaussian(nn.Module):
 
     def summary(self, lite=False):
         logging.info(
-            f"DenseDynGaussian: {self.N / 1000.0:.1f}K points; {self.M} Nodes; K={self.scf.skinning_k if self.scf != None else None}; and {self.T} time step"
+            f"DenseDynGaussian: {self.N / 1000.0:.1f}K points; {self.M} Nodes; K={self.scf.skinning_k}; and {self.T} time step"
         )
         if lite:
             return
@@ -244,7 +249,6 @@ class DynSCFGaussian(nn.Module):
 
     @property
     def device(self):
-        assert self.scf != None
         return self.scf.device
 
     @property
@@ -309,7 +313,7 @@ class DynSCFGaussian(nn.Module):
     #     return self.o_act(self._dynamic_logit)
 
     @property
-    def get_s(self) -> torch.Tensor:
+    def get_s(self):
         return self.s_act(self._scaling)
 
     @property
@@ -799,7 +803,6 @@ class DynSCFGaussian(nn.Module):
         for t in range(self.T):
             mu, fr, _, _, _ = self.forward(t)
             gs_mu_list.append(mu[candidate_mask])
-            assert fr is not None
             gs_fr_list.append(fr[candidate_mask])
 
         gs_mu_list = torch.stack(gs_mu_list, dim=0)  # T,N,3
@@ -900,6 +903,7 @@ class DynSCFGaussian(nn.Module):
         assert self.ref_time.max() < self.T, f"{self.ref_time.max()}, {self.T}"
 
         self.clean_corr_control_record()
+        return
 
     ######################################################################
     # * Gaussian Control

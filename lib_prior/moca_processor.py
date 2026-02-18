@@ -2,8 +2,10 @@
 # The segmentation is outside this function
 import os, sys, shutil, os.path as osp
 import torch, numpy as np
-import imageio, cv2
-import logging, time
+import imageio
+import cv2
+import logging
+import time
 from tqdm import tqdm
 
 sys.path.append(osp.dirname(osp.abspath(__file__)))
@@ -31,9 +33,9 @@ def fill_depth_boundaries(depth_map, boundary_mask):
     np.ndarray: The depth map with boundary values filled in.
     """
     # Ensure the boundary mask and depth map have the same shape
-    assert (
-        depth_map.shape == boundary_mask.shape
-    ), "Depth map and boundary mask must have the same shape."
+    assert depth_map.shape == boundary_mask.shape, (
+        "Depth map and boundary mask must have the same shape."
+    )
 
     # Get the coordinates of the non-boundary pixels
     non_boundary_coords = np.array(np.nonzero(~boundary_mask)).T
@@ -150,7 +152,6 @@ class MoCaPrep:
         align_metric_flag=True,
         align_metric_model="metric3d",
     ):
-
         print(f"loading {dep_mode} ...")
         self.dep_mode = dep_mode
         self.align_to_metric = False  # when the main depth model is not metric, have to align to a metric model, by default we use unidepth because it's easy to use
@@ -263,6 +264,7 @@ class MoCaPrep:
                 spatracker2_process_folder,
                 get_spatracker2,
             )
+
             print("loading spatracker v2...")
             self.tap = get_spatracker2(device)
             self.tap_process_func = spatracker2_process_folder
@@ -272,14 +274,16 @@ class MoCaPrep:
                 get_cotracker,
             )
 
-            print(f"loading cotracker v={cotrakcer_version} online={cotracker_online_flag}...")
+            print(
+                f"loading cotracker v={cotrakcer_version} online={cotracker_online_flag}..."
+            )
             self.tap = get_cotracker(
                 device,
                 cotrakcer_version=cotrakcer_version,
                 online_flag=cotracker_online_flag,
             )
             # ADD THESE PARAMETERS TO REDUCE MEMORY USAGE
-            if hasattr(self.tap, 'model'):
+            if hasattr(self.tap, "model"):
                 self.tap.model.grid_size = 6  # Reduce from default
                 self.tap.model.grid_query_frame = 2  # Reduce query frames
             self.cotracker_online_flag = cotracker_online_flag
@@ -475,9 +479,9 @@ class MoCaPrep:
             pass
 
         if enhance_depth_boudary_th > 0:
-            assert (
-                enhance_depth_boudary_open_ksize >= 3
-            ), "To have reasonable boundary enhancement, open_ksize should be >=3"
+            assert enhance_depth_boudary_open_ksize >= 3, (
+                "To have reasonable boundary enhancement, open_ksize should be >=3"
+            )
             original_dep = self.load_dep_list(save_dir)
             fixed_dep, fix_mask = self.enhance_depth_boundary(
                 original_dep,
@@ -497,7 +501,7 @@ class MoCaPrep:
             logging.info(f"Enhanced depth saved to {depth_save_dir}_sharp")
 
         torch.cuda.empty_cache()
-        logging.info(f"Depth done in {(time.time()-start_t)/60.0:.2f}min")
+        logging.info(f"Depth done in {(time.time() - start_t) / 60.0:.2f}min")
         return
 
     def enhance_depth_boundary(
@@ -527,9 +531,9 @@ class MoCaPrep:
         self.flow_process_func(
             self.flow_model, img_list, fn_list, raft_save_dir, step_list=step_list
         )
-        self.flow_model.to("cpu") 
+        self.flow_model.to("cpu")
         torch.cuda.empty_cache()
-        logging.info(f"Flow done in {(time.time()-start_t)/60.0:.2f}min")
+        logging.info(f"Flow done in {(time.time() - start_t) / 60.0:.2f}min")
 
         logging.info(f"Analysis the Epi Error")
         analyze_epi(save_dir, num_threads=epi_num_threads, step_list=step_list)
@@ -559,7 +563,7 @@ class MoCaPrep:
         seed_everything(self.seed)
         self.tap.to(self.device)
 
-        if   "spatracker" in self.tap_mode:
+        if "spatracker" in self.tap_mode:
             # load depth
             logging.warning(f"Warning, for spatracker safty, filter the depth boundary")
             dep_mask, _ = laplacian_filter_depth(
@@ -608,7 +612,7 @@ class MoCaPrep:
             )
         self.tap.cpu()
         torch.cuda.empty_cache()
-        logging.info(f"Long-track done in {(time.time()-start_t)/60.0:.2f}min")
+        logging.info(f"Long-track done in {(time.time() - start_t) / 60.0:.2f}min")
         return
 
     def process(
@@ -626,6 +630,7 @@ class MoCaPrep:
         flow_steps=[1],
         #
         compute_tap=True,
+        compute_depth=True,
         tap_chunk_size=8192,
         #
         depthcrafter_denoising_steps=25,
@@ -646,7 +651,7 @@ class MoCaPrep:
         # todo: modify the tap interface
 
         ########################################################################
-        img_name_list:list[str] = [osp.basename(fn) for fn in img_name_list]
+        img_name_list: list[str] = [osp.basename(fn) for fn in img_name_list]
         img_list = np.asarray(img_list)
 
         ########################################################################
@@ -654,7 +659,7 @@ class MoCaPrep:
         self.create_workspace(save_dir, t_list, img_name_list, img_list)
         # ########################################################################
         # * 2. Depth
-        if False:
+        if compute_depth:
             self.compute_depth(
                 save_dir,
                 img_name_list,
@@ -676,8 +681,8 @@ class MoCaPrep:
             )
         ########################################################################
         # # * 3. Flow and Epi error [Opt]
-        if self.flow_mode == "raft" and compute_flow and False: # TODO:MIKE
-            logging.info(f"Generating Flow and Analysis EPI")
+        if self.flow_mode == "raft" and compute_flow:
+            logging.info("Generating Flow and Analysis EPI")
             self.compute_flow(
                 save_dir,
                 img_name_list,
@@ -724,7 +729,6 @@ class MoCaPrep:
 
 
 if __name__ == "__main__":
-
     from preprocessor_utils import load_imgs, convert_from_mp4
 
     img_list, img_fns = load_imgs(f"../data/davis/train/images")

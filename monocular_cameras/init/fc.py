@@ -5,14 +5,14 @@ import logging
 
 
 def init_fc(
-    fovxfovycxcy: tuple[float, float, float, float],
+    fovxfovycxcy: Optional[tuple[float, float, float, float]],
     K: Optional[torch.Tensor],
     height: float,
     width: float,
 ):
     if K is None:
         if fovxfovycxcy is None:
-            fovxfovycxcy = torch.tensor([53.1, 53.1, 0.5, 0.5])
+            fovxfovycxcy = (53.1, 53.1, 0.5, 0.5)
             logging.warning(
                 f"Both fxfycxcy and KHW are None, use default {fovxfovycxcy}"
             )

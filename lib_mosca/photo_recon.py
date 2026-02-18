@@ -1,6 +1,5 @@
 # from origial reconstruction.py import all rendering related stuff
 import sys, os, os.path as osp
-from typing import Optional
 import torch
 import logging
 from tqdm import tqdm
@@ -95,7 +94,7 @@ class DynReconstructionSolver:
 
         self.radius_init_factor = radius_init_factor
         self.opacity_init_factor = opacity_init_factor
-        
+        return
 
     @torch.no_grad()
     def identify_fg_mask_by_nearest_curve(
@@ -113,9 +112,7 @@ class DynReconstructionSolver:
             * curve_mask[:, ~s2d.dynamic_track_mask, None]
         ).sum(0, keepdim=True) / curve_mask[:, ~s2d.dynamic_track_mask, None].sum(
             0, keepdim=True
-        ).expand(
-            len(curve_xyz), -1, -1
-        )
+        ).expand(len(curve_xyz), -1, -1)
         curve_xyz[:, ~s2d.dynamic_track_mask] = static_curve_mean
         np.savetxt(
             osp.join(self.viz_dir, "fg_id_non_dyn_curve_meaned.xyz"),
@@ -160,8 +157,8 @@ class DynReconstructionSolver:
     @torch.no_grad()
     def compute_normals_for_s2d(
         self,
-        s2d: Saved2D,
-        cams: MonocularCameras,
+        s2d,
+        cams,
         patch_size=7,
         nn_dist_th=0.03,
         nn_min_cnt=4,
@@ -217,13 +214,13 @@ class DynReconstructionSolver:
 
         s2d.register_buffer("nrm", ret_nrm.detach().clone())
         s2d.dep_mask = ret_mask.detach().clone()
-        
+        return
 
     @torch.no_grad()
     def get_static_model(
         self,
         s2d: Saved2D,
-        cams: MonocularCameras,
+        cams,
         n_init=30000,
         radius_max=0.05,
         max_sph_order=0,
@@ -338,16 +335,14 @@ class DynReconstructionSolver:
             )
         # d_model.scf.update_topology()
         d_model.summary()
-        
         return d_model
-        
 
     def photometric_fit(
         self,
         s2d: Saved2D,
         cams: MonocularCameras,
         s_model: StaticGaussian,
-        d_model: Optional[DynSCFGaussian] = None,
+        d_model: DynSCFGaussian = None,
         optim_cam_after_steps=0,
         total_steps=8000,
         topo_update_feq=50,
@@ -445,9 +440,6 @@ class DynReconstructionSolver:
         photo_s2d_trans_steps=[],
     ):
         logging.info(f"Finetune with GS-BACKEND={GS_BACKEND.lower()}")
-        optimizer_dynamic = None
-        dst_xyz_cam = None
-        reg_tids = None
 
         torch.cuda.empty_cache()
         n_frame = 1
@@ -516,7 +508,6 @@ class DynReconstructionSolver:
         if d_flag:
             # ! for now the group rendering only works for dynamic joitn mode
             n_group_static = len(s_model.group_id.unique())
-            assert d_model.scf != None, "d_model is None"
             n_group_dynamic = len(d_model.scf.unique_grouping)
             color_plate = get_colorplate(n_group_static + n_group_dynamic)
             # random permute
@@ -550,11 +541,9 @@ class DynReconstructionSolver:
             s_model.zero_grad()
             s2d.zero_grad()
             if d_flag:
-                assert optimizer_dynamic != None
                 optimizer_dynamic.zero_grad()
                 d_model.zero_grad()
                 if step % topo_update_feq == 0:
-                    assert d_model.scf != None
                     d_model.scf.update_topology()
 
             if step > decay_start:
@@ -605,7 +594,6 @@ class DynReconstructionSolver:
                 add_buffer = None
                 if corr_exe_flag:
                     # ! detach bg pts
-                    assert d_model != None, "d_model is None"
                     dst_xyz = torch.cat([gs5[0][0].detach(), d_model(dst_ind)[0]], 0)
                     dst_xyz_cam = cams.trans_pts_to_cam(dst_ind, dst_xyz)
                     if GS_BACKEND in ["native_add3"]:
@@ -617,7 +605,7 @@ class DynReconstructionSolver:
                     bg_color = np.random.rand(3).tolist()
                 else:
                     bg_color = default_bg_color  # [1.0, 1.0, 1.0]
-                if GS_BACKEND in ["native_add3"]: # WARNING TYPO
+                if GS_BACKEND in ["natie_add3"]:
                     # the render internally has another protection, because if not set, the grad has bug
                     bg_color += [0.0, 0.0, 0.0]
 
@@ -747,7 +735,6 @@ class DynReconstructionSolver:
                     s_cate_sph, s_gid2color = s_model.get_cate_color(
                         perm=torch.randperm(len(s_model.group_id.unique()))
                     )
-                    assert d_model.scf != None
                     d_cate_sph, d_gid2color = d_model.get_cate_color(
                         perm=torch.randperm(len(d_model.scf.unique_grouping))
                     )
@@ -781,7 +768,6 @@ class DynReconstructionSolver:
                 _r = min(cams.T, view_ind_list[0] + 1 + reg_radius)
                 reg_tids = torch.arange(_l, _r, device=s_model.device)
             if (lambda_arap_coord > 0.0 or lambda_arap_len > 0.0) and d_flag:
-                assert d_model.scf != None
                 loss_arap_coord, loss_arap_len = d_model.scf.compute_arap_loss(
                     reg_tids,
                     temporal_diff_shift=temporal_diff_shift,
@@ -790,8 +776,8 @@ class DynReconstructionSolver:
                 assert torch.isnan(loss_arap_coord).sum() == 0
                 assert torch.isnan(loss_arap_len).sum() == 0
             else:
-                loss_arap_coord = torch.zeros_like(torch.tensor(loss_rgb))
-                loss_arap_len = torch.zeros_like(torch.tensor(loss_rgb))
+                loss_arap_coord = torch.zeros_like(loss_rgb)
+                loss_arap_len = torch.zeros_like(loss_rgb)
 
             if (
                 lambda_vel_xyz_reg > 0.0
@@ -799,7 +785,6 @@ class DynReconstructionSolver:
                 or lambda_acc_xyz_reg > 0.0
                 or lambda_acc_rot_reg > 0.0
             ) and d_flag:
-                assert d_model.scf != None
                 (
                     loss_vel_xyz_reg,
                     loss_vel_rot_reg,
@@ -809,12 +794,12 @@ class DynReconstructionSolver:
             else:
                 loss_vel_xyz_reg = loss_vel_rot_reg = loss_acc_xyz_reg = (
                     loss_acc_rot_reg
-                ) = torch.zeros_like(torch.tensor(loss_rgb))
+                ) = torch.zeros_like(loss_rgb)
 
             if d_flag:
                 loss_small_w = abs(d_model._skinning_weight).mean()
             else:
-                loss_small_w = torch.zeros_like(torch.tensor(loss_rgb))
+                loss_small_w = torch.zeros_like(loss_rgb)
 
             loss = (
                 loss_rgb * lambda_rgb
@@ -847,7 +832,6 @@ class DynReconstructionSolver:
                 with torch.no_grad():
                     # before the gs control to append full opacity GS
                     random_select_t = np.random.choice(cams.T)
-                    assert d_model != None, "d_model is None"
                     trans_d_gs5 = d_model(random_select_t)
                     logging.info(f"Transfer dynamic to static at step={step}")
 
@@ -968,7 +952,6 @@ class DynReconstructionSolver:
             # viz
             viz_flag = viz_interval > 0 and (step % viz_interval == 0)
             if viz_flag:
-
                 if d_flag:
                     viz_hist(d_model, self.viz_dir, f"{phase_name}_step={step}_dynamic")
                     viz_dyn_hist(
@@ -1136,8 +1119,9 @@ class DynReconstructionSolver:
                 ):
                     plt.subplot(2, 10, plt_i + 1)
                     value_end = 0 if len(plt_pack[1]) == 0 else plt_pack[1][-1]
-                    plt.plot(plt_pack[1]), plt.title(
-                        plt_pack[0] + f" End={value_end:.4f}"
+                    (
+                        plt.plot(plt_pack[1]),
+                        plt.title(plt_pack[0] + f" End={value_end:.4f}"),
                     )
                 plt.savefig(
                     osp.join(self.viz_dir, f"{phase_name}_optim_loss_step={step}.jpg")
@@ -1181,8 +1165,9 @@ class DynReconstructionSolver:
             ]
         ):
             plt.subplot(2, 10, plt_i + 1)
-            plt.plot(plt_pack[1]), plt.title(
-                plt_pack[0] + f" End={plt_pack[1][-1]:.6f}"
+            (
+                plt.plot(plt_pack[1]),
+                plt.title(plt_pack[0] + f" End={plt_pack[1][-1]:.6f}"),
             )
         plt.savefig(osp.join(self.log_dir, f"{phase_name}_optim_loss.jpg"))
         plt.close()
@@ -1238,13 +1223,12 @@ class DynReconstructionSolver:
                 d_model.return_cate_colors_flag = False
                 s_model.return_cate_colors_flag = False
         torch.cuda.empty_cache()
-        
+        return
 
     @torch.no_grad()
-    def render_all(self, cams: MonocularCameras, s_model: Optional[StaticGaussian]=None, d_model=None):
+    def render_all(self, cams: MonocularCameras, s_model=None, d_model=None):
         ret = []
         assert s_model is not None or d_model is not None, "No model to render"
-        assert s_model != None
         s_gs5 = s_model()
         for t in tqdm(range(cams.T)):
             gs5 = [s_gs5]

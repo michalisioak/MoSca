@@ -10,5 +10,6 @@
         "demo",
         "demo2",
         "demo_old",
+        "prior/tracking/spatracker2",
     ]
 }

@@ -40,43 +40,40 @@ class MonocularCameras(nn.Module):
         n_time_steps: int,
         default_H: int,
         default_W: int,
-        fxfycxcy: tuple[
-            float, float, float, float
-        ],  # intr init 1, fxfy in deg, cxcy in ratio [53.1, 53.1, 0.5, 0.5]
+        fxfycxcy: Optional[
+            tuple[float, float, float, float]
+        ] = None,  # intr init 1, fxfy in deg, cxcy in ratio [53.1, 53.1, 0.5, 0.5]
         K: Optional[torch.Tensor] = None,  # intr init 2, K is 3x3 mat
-        #
         delta_flag: bool = True,
         init_camera_pose: Optional[
             torch.Tensor
         ] = None,  # either T_wc in indep model; or T_i(i+1) in delta model
-        # * cam flag
         iso_focal: bool = False,
     ) -> None:
         super().__init__()
         self.T = n_time_steps
+        # TODO remove in new version of pytorch
+        self.register_buffer("delta_flag", torch.tensor(delta_flag))
+        self.register_buffer("iso_focal", torch.tensor(iso_focal))
         self.delta_flag = nn.Buffer(torch.tensor(delta_flag))
         self.iso_focal = nn.Buffer(torch.tensor(iso_focal))
 
         rel_focal, cxcy_ratio = init_fc(
             fxfycxcy, K, width=float(default_W), height=float(default_H)
         )
-        self._rel_focal = nn.Parameter(rel_focal)  # ! both rel to short side=2
+        self.rel_focal = nn.Parameter(rel_focal)  # ! both rel to short side=2
         self.cxcy_ratio = nn.Parameter(cxcy_ratio)  # ! separate ratio for H=1, W=1
 
         param_cam_q, param_cam_t = init_qt(self.T, init_camera_pose, delta_flag)
         self.q_wc = nn.Parameter(param_cam_q)
         self.t_wc = nn.Parameter(param_cam_t)
 
+        # TODO remove in new version of pytorch
+        self.register_buffer("default_H", torch.tensor(default_H))
+        self.register_buffer("default_W", torch.tensor(default_W))
         self.default_H = nn.Buffer(torch.tensor(default_H))
         self.default_W = nn.Buffer(torch.tensor(default_W))
         self.summary()
-
-    @property
-    def rel_focal(self):
-        if self.iso_focal:
-            return self._rel_focal[0].repeat(2)
-        else:
-            return self._rel_focal
 
     def __len__(self):
         return self.T
@@ -267,7 +264,7 @@ class MonocularCameras(nn.Module):
         if cfg.lr_t is not None and cfg.lr_t > 0:
             ret.append({"params": [self.t_wc], "lr": cfg.lr_t, "name": "t"})
         if cfg.lr_f is not None and cfg.lr_f > 0:
-            ret.append({"params": [self._rel_focal], "lr": cfg.lr_f, "name": "f"})
+            ret.append({"params": [self.rel_focal], "lr": cfg.lr_f, "name": "f"})
         if cfg.lr_c is not None and cfg.lr_c > 0:
             ret.append({"params": [self.cxcy_ratio], "lr": cfg.lr_c, "name": "cxcy"})
         if len(ret) > 0:
@@ -307,9 +304,21 @@ class MonocularCameras(nn.Module):
         u, v = torch.meshgrid(
             torch.linspace(u_range[0], u_range[1], width_val),
             torch.linspace(v_range[0], v_range[1], height_val),
+            indexing="xy",
         )
         uv = torch.stack([u, v], dim=-1)  # H,W,2
         return uv.to(self.rel_focal).to(self.rel_focal.device)
+
+    @classmethod
+    def load_from_ckpt(cls, ckpt):
+        logging.info("Load camera from checkpoint")
+        H = ckpt["default_H"]
+        W = ckpt["default_W"]
+        delta_flag = ckpt["delta_flag"]
+        T = len(ckpt["q_wc"])
+        cams = cls(n_time_steps=T, default_H=H, default_W=W, delta_flag=delta_flag)
+        cams.load_state_dict(ckpt, strict=True)
+        return cams
 
 
 def __get_homo_coordinate_map__(H: int, W: int):

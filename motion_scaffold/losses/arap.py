@@ -6,9 +6,9 @@ from motion_scaffold import MoSca, q2R
 
 def compute_arap_loss(
     scf: MoSca,
-    tids=None,
-    temporal_diff_weight=[0.75, 0.25],
-    temporal_diff_shift=[1, 4],
+    tids: torch.Tensor | None = None,
+    temporal_diff_weight: list[float] = [0.75, 0.25],
+    temporal_diff_shift: list[int] = [1, 4],
     # * used for only change the latest append frame during appending loop
     detach_tids_mask=None,
     reduce_type="mean",
@@ -19,7 +19,7 @@ def compute_arap_loss(
         tids = torch.arange(scf.T).to(scf.device)
     assert tids.max() <= scf.T - 1
     xyz = scf.node_xyz[tids]
-    R_wi = q2R(scf._node_rotation[tids])
+    R_wi = q2R(scf.node_rotation[tids])
     topo_ind = scf.topo_knn_ind
     topo_w = scf.topo_knn_mask.float()  # N,K, binary mask
     topo_w = topo_w / (topo_w.sum(dim=-1, keepdim=True) + 1e-6)  # normalize
@@ -42,48 +42,49 @@ def compute_arap_loss(
 
     # topo: speed up this
     if scf.mlevel_arap_flag:
-        for l in range(len(scf.multilevel_arap_edge_list)):
+        for level in range(len(scf.multilevel_arap_edge_list)):
             # ! in this case, self is from the larger set
             _local_coord = get_local_coord(
                 xyz,
-                scf.multilevel_arap_edge_list[l][:, 1:],
+                scf.multilevel_arap_edge_list[level][:, 1:],
                 R_wi,
-                self_ind=scf.multilevel_arap_edge_list[l][:, :1],
-                detach_nn=scf.mlevel_detach_nn_flag.item(),
-                detach_self=scf.mlevel_detach_self_flag.item(),
+                self_ind=scf.multilevel_arap_edge_list[level][:, :1],
+                detach_nn=bool(scf.mlevel_detach_nn_flag.item()),
+                detach_self=bool(scf.mlevel_detach_self_flag.item()),
             )  # T,N,1,3
 
             _loss_coord, _loss_len, _, _ = compute_arap(
                 _local_coord,
-                scf.multilevel_arap_topo_w[l][:, None],
+                scf.multilevel_arap_topo_w[level][:, None],
                 temporal_diff_shift,
                 temporal_diff_weight,
                 reduce=reduce_type,
                 square=square,
             )
-            loss_coord = loss_coord + _loss_coord * scf.mlevel_w_list[l]
-            loss_len = loss_len + _loss_len * scf.mlevel_w_list[l]
+            loss_coord = loss_coord + _loss_coord * scf.mlevel_w_list[level]
+            loss_len = loss_len + _loss_len * scf.mlevel_w_list[level]
 
     return loss_coord, loss_len
 
 
 def compute_arap(
-    local_coord,  # T,N,K,3
-    topo_w,  # N,K
-    temporal_diff_shift,
-    temporal_diff_weight,
+    local_coord: torch.Tensor,  # T,N,K,3
+    topo_w: torch.Tensor,  # N,K
+    temporal_diff_shift: list[int],
+    temporal_diff_weight: list[float],
     reduce="mean",
     square=False,
-):
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     local_coord_len = local_coord.norm(dim=-1, p=2)  # T,N,K
     # the coordinate should be similar
     # the metric should be similar
-    loss_coord, loss_len = (
-        torch.tensor(0.0).to(local_coord),
-        torch.tensor(0.0).to(local_coord),
-    )
+    loss_coord: torch.Tensor = torch.tensor(0.0).to(local_coord)
+    loss_len: torch.Tensor = torch.tensor(0.0).to(local_coord)
+
     for shift, _w in zip(temporal_diff_shift, temporal_diff_weight):
-        diff_coord = (local_coord[:-shift] - local_coord[shift:]).norm(dim=-1)
+        diff_coord: torch.Tensor = (local_coord[:-shift] - local_coord[shift:]).norm(
+            dim=-1
+        )
         if len(diff_coord) < 1:
             continue
         diff_len = (local_coord_len[:-shift] - local_coord_len[shift:]).abs()
@@ -96,15 +97,15 @@ def compute_arap(
         diff_coord = (diff_coord * topo_w[None]).sum(-1)
         diff_len = (diff_len * topo_w[None]).sum(-1)
         if reduce == "sum":
-            loss_coord = loss_coord + _w * diff_coord.sum()
-            loss_len = loss_len + _w * diff_len.sum()
+            loss_coord: torch.Tensor = loss_coord + _w * diff_coord.sum()
+            loss_len: torch.Tensor = loss_len + _w * diff_len.sum()
         elif reduce == "mean":
-            loss_coord = loss_coord + _w * diff_coord.mean()
-            loss_len = loss_len + _w * diff_len.mean()
+            loss_coord: torch.Tensor = loss_coord + _w * diff_coord.mean()
+            loss_len: torch.Tensor = loss_len + _w * diff_len.mean()
         else:
             raise NotImplementedError()
-    loss_coord_global = (local_coord.std(0) * topo_w[..., None]).sum()
-    loss_len_global = (local_coord_len.std(0) * topo_w).sum()
+    loss_coord_global: torch.Tensor = (local_coord.std(0) * topo_w[..., None]).sum()
+    loss_len_global: torch.Tensor = (local_coord_len.std(0) * topo_w).sum()
     assert not torch.isnan(loss_coord) and not torch.isnan(loss_len)
     return loss_coord, loss_len, loss_coord_global, loss_len_global
 

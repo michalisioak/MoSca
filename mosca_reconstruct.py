@@ -6,7 +6,6 @@ import logging
 import kornia
 from omegaconf import OmegaConf
 
-# from lib_mosca.auto import AutoMoSca
 from lib_prior.prior_loading import Saved2D
 
 from lib_render.render_helper import GS_BACKEND
@@ -40,15 +39,11 @@ from recon_utils import (
     set_epi_mask_to_s2d_for_bg_render,
 )
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt 
-
 
 def get_static_render_error_mask(s2d, log_path, render_error_th, open_ksize=-1):
-    assert osp.exists(
-        osp.join(log_path, "photo_warmup_rendered.npz")
-    ), "Photo warmup result not found"
+    assert osp.exists(osp.join(log_path, "photo_warmup_rendered.npz")), (
+        "Photo warmup result not found"
+    )
     photo_data = np.load(osp.join(log_path, "photo_warmup_rendered.npz"))
     device = s2d.rgb.device
     rgb_rendered = torch.tensor(photo_data["rgb"]).to(device).permute(0, 2, 3, 1)
@@ -78,7 +73,7 @@ def photometric_warmup(ws, log_path, fit_cfg):
         return
     device = torch.device("cuda:0")
     logging.info(
-        "First run static bg GS warm up to save time before joint optimization"
+        f"First run static bg GS warm up to save time before joint optimization"
     )
 
     s2d = (
@@ -365,12 +360,9 @@ def scaffold_reconstruct(ws, log_path, fit_cfg):
         topo_sample_T=getattr(fit_cfg, "mosca_topo_sample_T", 100),
         skinning_k=getattr(fit_cfg, "mosca_skinning_k", 16),
         skinning_method=getattr(fit_cfg, "mosca_skinning_method", "dqb"),
-        # mlevel_list=getattr(fit_cfg, "mosca_mlevel_list", [1, 7, 15]),
-        mlevel_list=[1],
-        mlevel_k_list=[16],
-        mlevel_w_list=[1.0],
-        # mlevel_k_list=getattr(fit_cfg, "mosca_mlevel_k_list", [16, 8, 8]),
-        # mlevel_w_list=getattr(fit_cfg, "mosca_mlevel_w_list", [0.4, 0.3, 0.3]),
+        mlevel_list=getattr(fit_cfg, "mosca_mlevel_list", [1, 7, 15]),
+        mlevel_k_list=getattr(fit_cfg, "mosca_mlevel_k_list", [16, 8, 8]),
+        mlevel_w_list=getattr(fit_cfg, "mosca_mlevel_w_list", [0.4, 0.3, 0.3]),
         mlevel_detach_nn_flag=getattr(
             fit_cfg, "mosca_mlevel_detach_nn_flag", True
         ),  # ! this should be False but due to the old code behavior, set default to True to align with the submission version.
@@ -720,6 +712,7 @@ def photometric_reconstruct(ws, log_path, fit_cfg):
         random_bg=getattr(fit_cfg, "photo_random_bg", True),
         default_bg_color=getattr(fit_cfg, "photo_default_bg_color", [1.0, 1.0, 1.0]),
     )
+    return
 
 
 if __name__ == "__main__":

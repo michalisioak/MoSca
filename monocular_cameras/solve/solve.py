@@ -3,7 +3,7 @@ from loguru import logger
 import torch
 import logging
 
-from monocular_cameras.solve.buffer_utils import query_buffers_by_track
+from utils.buffer import query_buffers_by_track
 
 from .fov_search import (
     compute_graph_energy,

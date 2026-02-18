@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from scaffold_utils.dualquat_helper import Rt2dq, dq2unitdq, dq2Rt
-from utils3d.torch import (
+from pytorch3d.transforms import (
     matrix_to_axis_angle,
     quaternion_to_matrix,
     matrix_to_quaternion,
@@ -20,7 +20,7 @@ from gs_utils.gs_optim_helper import prune_optimizer, cat_tensors_to_optimizer
 
 # DQ_EPS = 0.00001
 DQ_EPS = 0.001
-TOPO_CHUNK_SIZE = 65536 // 8
+TOPO_CHUNK_SIZE = 65536 // 2
 
 
 class MoSca(nn.Module):
@@ -165,6 +165,7 @@ class MoSca(nn.Module):
         )
         self.to(init_device)
         self.summary()
+        return
 
     def set_skinning_method(self):
         if self.blending_method == 0:
@@ -188,7 +189,6 @@ class MoSca(nn.Module):
 
     @property
     def device(self):
-        assert self._node_xyz != None
         return self._node_xyz.device
 
     @property
@@ -368,7 +368,6 @@ class MoSca(nn.Module):
         # update the D_topo
         old_M = len(self._D_topo)
         append_M = self.M - old_M
-        new_D = None
         if append_M > 0:
             bottom = __query_distance_to_curve__(
                 q_curve_xyz=self._node_xyz[:, old_M:],
@@ -392,7 +391,6 @@ class MoSca(nn.Module):
 
         # update the knn and mask
         assert len(self.topo_knn_ind) == old_M
-        assert new_D != None
         new_topo_dist, new_topo_knn_ind = __compute_topo_ind_from_dist__(
             new_D[old_M:], self.skinning_k - 1
         )
@@ -475,6 +473,7 @@ class MoSca(nn.Module):
         if verbose:
             logging.info(f"Topology updated in {time.time() - start_t:.2f}s")
         torch.cuda.empty_cache()
+        return
 
     def update_multilevel_arap_topo(self, verbose=False):
         if not self.mlevel_arap_flag:
@@ -496,6 +495,7 @@ class MoSca(nn.Module):
                     f"MultiRes l={l} {multilevel_arap_topo_w[-1].float().mean() * 100.0:.2f}% valid edges"
                 )
         self.multilevel_arap_topo_w = multilevel_arap_topo_w
+        return
 
     def warp(
         self,
@@ -712,7 +712,7 @@ class MoSca(nn.Module):
             )
             dist_sq = dist_sq[0, :, 0]
             nearest_ind = torch.argsort(dist_sq)[:chunk_size]
-            nearest_mask = torch.zeros(len(new_node_xyz), dtype=torch.bool)
+            nearest_mask = torch.zeros(len(new_node_xyz), dtype=bool)
             nearest_mask[nearest_ind] = True
             working_node_xyz = new_node_xyz[nearest_mask]
             working_node_quat = new_node_quat[nearest_mask]
@@ -739,7 +739,6 @@ class MoSca(nn.Module):
                     check_error = (working_node_xyz_t - working_node_xyz).norm(dim=-1)
                     assert check_error.max() < 1e-6
                 node_xyz_list.append(working_node_xyz_t)
-                assert working_node_fr_t != None
                 node_quat_list.append(matrix_to_quaternion(working_node_fr_t))
 
             to_append_node_xyz = torch.stack(node_xyz_list, 0)
@@ -851,67 +850,6 @@ class MoSca(nn.Module):
         else:
             raise NotImplementedError()
         return loss_p_vel, loss_q_vel, loss_p_acc, loss_q_acc
-
-    def compute_velocity_acceleration_loss(
-        self, time_indices=None, detach_mask=None, reduce_type="mean", square=False
-    ):
-        if time_indices is None:
-            time_indices = torch.arange(self.total_frames).to(self.device)
-        assert time_indices.max() <= self.total_frames - 1
-
-        xyz_coordinates = self._node_xyz[time_indices]
-        rotation_world_to_inertial = q2R(self._node_rotation[time_indices])
-
-        if detach_mask is not None:
-            detach_mask = detach_mask.float()[:, None, None]
-            xyz_coordinates = (
-                xyz_coordinates.detach() * detach_mask
-                + xyz_coordinates * (1 - detach_mask)
-            )
-            rotation_world_to_inertial = (
-                rotation_world_to_inertial.detach() * detach_mask[..., None]
-                + rotation_world_to_inertial * (1 - detach_mask)[..., None]
-            )
-
-        xyz_velocity, angular_velocity, xyz_acceleration, angular_acceleration = (
-            compute_vel_acc(xyz_coordinates, rotation_world_to_inertial)
-        )
-
-        if square:
-            xyz_velocity, angular_velocity, xyz_acceleration, angular_acceleration = (
-                xyz_velocity**2,
-                angular_velocity**2,
-                xyz_acceleration**2,
-                angular_acceleration**2,
-            )
-
-        if reduce_type == "mean":
-            loss_position_velocity, loss_orientation_velocity = (
-                xyz_velocity.mean(),
-                angular_velocity.mean(),
-            )
-            loss_position_acceleration, loss_orientation_acceleration = (
-                xyz_acceleration.mean(),
-                angular_acceleration.mean(),
-            )
-        elif reduce_type == "sum":
-            loss_position_velocity, loss_orientation_velocity = (
-                xyz_velocity.sum(),
-                angular_velocity.sum(),
-            )
-            loss_position_acceleration, loss_orientation_acceleration = (
-                xyz_acceleration.sum(),
-                angular_acceleration.sum(),
-            )
-        else:
-            raise NotImplementedError()
-
-        return (
-            loss_position_velocity,
-            loss_orientation_velocity,
-            loss_position_acceleration,
-            loss_orientation_acceleration,
-        )
 
     def compute_arap_loss(
         self,
@@ -1300,7 +1238,6 @@ def __query_distance_to_curve__(
     else:
         b_mask = b_mask.bool().to(b_curve_xyz.device)
 
-    t_choice = None
     if T > max_subsample_T:
         t_choice = torch.randperm(T)[:max_subsample_T]
         t_choice = torch.sort(t_choice)[0]
@@ -1339,7 +1276,7 @@ def _compute_curve_topo_dist_(
     max_subsample_T=80,
     top_k=8,
     chunk=65536,
-) -> torch.Tensor:
+):
     # * this  function have to handle size N~10k-30k, T<max_subsample_T
     # curve_xyz: T,N,3
 
@@ -1349,7 +1286,6 @@ def _compute_curve_topo_dist_(
     else:
         curve_mask = curve_mask.bool().to(curve_xyz.device)
 
-    t_choice = None
     if T > max_subsample_T:
         t_choice = torch.randperm(T)[:max_subsample_T]
         t_choice = torch.sort(t_choice)[0]
@@ -1378,17 +1314,8 @@ def _compute_curve_topo_dist_(
         cur = cur + chunk
     # convert the list to upper and lower triangle
     _d = torch.zeros(N, N).to(xyz)
-    print(f"N:{N}")
-    print(f"_d shape:{_d.shape} type:{_d.dtype}")
-    print(f"flat_D shape:{flat_D.shape} type:{flat_D.dtype}")
-    print(f"curve_xyz shape:{curve_xyz.shape} type:{curve_xyz.dtype}")
-    print(f"ind_pair shape:{ind_pair.shape} type:{ind_pair.dtype}")
-    # assert False, _d.shape
-    # _d[ind_pair[:, 0], ind_pair[:, 1]] = flat_D
-    # _d[ind_pair[:, 1], ind_pair[:, 0]] = flat_D
-    _d.index_put_((ind_pair[:, 0], ind_pair[:, 1]), flat_D)
-    _d.index_put_((ind_pair[:, 1], ind_pair[:, 0]), flat_D)
-
+    _d[ind_pair[:, 0], ind_pair[:, 1]] = flat_D
+    _d[ind_pair[:, 1], ind_pair[:, 0]] = flat_D
     # make distance that is zero to be Huge
     # ! set distance to self as inf as well, outside this will handle skinning to self
     invalid_mask = _d == 0
@@ -1577,3 +1504,9 @@ def __identify_spatial_unit_from_curves__(xyz, mask, K=10):
     unit = torch.sqrt(dist_list.median())
     assert torch.isnan(unit) == False, f"{dist_list}"
     return float(unit)
+
+
+if __name__ == "__main__":
+    # test dummy init
+    xyz = torch.zeros(0, 0, 3)
+    quat = torch.zeros(0, 0, 4)

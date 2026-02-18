@@ -183,3 +183,9 @@ if __name__ == "__main__":
     # R2, t2 = dq2Rt(dq2)
     # T2 = dq2T(dq2)
     # print()
+
+
+def q2R(q):
+    nq = F.normalize(q, dim=-1, p=2)
+    R = quaternion_to_matrix(nq)
+    return R

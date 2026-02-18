@@ -1,5 +1,8 @@
+from motion_scaffold import MoSca
+
+
 def fast_warp(
-    self,
+    scf: MoSca,
     target_tid,
     # all below are baked
     sk_ind,
@@ -13,9 +16,9 @@ def fast_warp(
     # query_xyz: (N, 3) in live world frame, time: N,
     # query_dir: (N,3,C), attach_node_ind: N, must specify outside which curve is the nearest, so the topology is decided there
     # note, the query_tid and target_tid can be different for each query
-    sk_dst_node_xyz = self.node_xyz[target_tid][sk_ind]
-    sk_dst_node_quat = self._node_rotation[target_tid][sk_ind]
-    ret_xyz, ret_dir = self.__BLEND_FUNC__(
+    sk_dst_node_xyz = scf.node_xyz[target_tid][sk_ind]
+    sk_dst_node_quat = scf.node_rotation[target_tid][sk_ind]
+    ret_xyz, ret_dir = scf.blending_func(
         sk_w=sk_w,
         src_xyz=query_xyz,
         src_R=query_dir,

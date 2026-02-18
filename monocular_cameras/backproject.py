@@ -2,7 +2,7 @@ import torch
 
 
 def backproject(uv: torch.Tensor, d: torch.Tensor, rel_focal, cxcy_ratio):
-    assert uv.ndim == 2
+    # assert uv.ndim == 2
     # uv: always be [-1,+1] on the short side
     assert uv.ndim == d.ndim + 1
     assert uv.shape[-1] == 2

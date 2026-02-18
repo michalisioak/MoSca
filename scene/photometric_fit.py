@@ -346,12 +346,10 @@ def photometric_fit(
         else:
             loss_mask = torch.zeros_like(loss_rgb)
 
-        if True:
-            _l = max(0, view_ind_list[0] - reg_radius)
-            _r = min(cams.T, view_ind_list[0] + 1 + reg_radius)
-            reg_tids = torch.arange(_l, _r, device=s_model.device)
+        _l = max(0, view_ind_list[0] - reg_radius)
+        _r = min(cams.T, view_ind_list[0] + 1 + reg_radius)
+        reg_tids = torch.arange(_l, _r, device=s_model.device)
         if (lambda_arap_coord > 0.0 or lambda_arap_len > 0.0) and True:
-            assert d_model.scf != None
             loss_arap_coord, loss_arap_len = d_model.scf.compute_arap_loss(
                 reg_tids,
                 temporal_diff_shift=temporal_diff_shift,
@@ -369,7 +367,6 @@ def photometric_fit(
             or lambda_acc_xyz_reg > 0.0
             or lambda_acc_rot_reg > 0.0
         ) and True:
-            assert d_model.scf != None
             (
                 loss_vel_xyz_reg,
                 loss_vel_rot_reg,
@@ -381,12 +378,9 @@ def photometric_fit(
                 loss_acc_rot_reg
             ) = torch.zeros_like(torch.tensor(loss_rgb))
 
-        if True:
-            loss_small_w = abs(d_model._skinning_weight).mean()
-        else:
-            loss_small_w = torch.zeros_like(torch.tensor(loss_rgb))
+        loss_small_w = abs(d_model.skinning_weight).mean()
 
-        loss = (
+        loss: torch.Tensor = (
             loss_rgb * lambda_rgb
             + loss_dep * lambda_dep
             + loss_mask * lambda_mask
@@ -418,9 +412,8 @@ def photometric_fit(
             with torch.no_grad():
                 # before the gs control to append full opacity GS
                 random_select_t = np.random.choice(cams.T)
-                assert d_model != None, "d_model is None"
                 trans_d_gs5 = d_model(random_select_t)
-                logging.info(f"Transfer dynamic to static at step={step}")
+                logger.info(f"Transfer dynamic to static at step={step}")
 
         # d_model to s_model transfer [2] append to static model
         if dynamic_to_static_transfer_flag:

@@ -157,9 +157,9 @@ def render_cam_pcl(
     if colors_precomp is None:
         colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
     else:
-        assert (
-            colors_precomp.shape == sh2rgb.shape
-        ), f"{colors_precomp.shape} != {sh2rgb.shape}"
+        assert colors_precomp.shape == sh2rgb.shape, (
+            f"{colors_precomp.shape} != {sh2rgb.shape}"
+        )
     # ! compute spherical color
     # colors_precomp = color_feat
 
@@ -191,7 +191,7 @@ def render_cam_pcl(
         raise ValueError(f"Unexpected return value from rasterizer with len={len(ret)}")
     if verbose:
         print(
-            f"render time: {(time.time() - start_time)*1000:.3f}ms",
+            f"render time: {(time.time() - start_time) * 1000:.3f}ms",
         )
 
     ret = {

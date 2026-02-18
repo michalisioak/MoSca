@@ -4,6 +4,7 @@ import torch
 from tqdm import tqdm
 from utils3d.torch import matrix_to_quaternion
 
+from monocular_cameras.backproject import backproject
 from monocular_cameras.cameras import MonocularCameras
 
 
@@ -20,9 +21,9 @@ class LeavesFetchConfig:
 def fetch_leaves_in_world_frame(
     cams: MonocularCameras,
     cfg: LeavesFetchConfig,
-    input_mask_list: torch.Tensor,
-    input_dep_list: torch.Tensor,
-    input_rgb_list: torch.Tensor,
+    gather_mask: torch.Tensor,
+    dep: torch.Tensor,
+    rgb: torch.Tensor,
     t_list: list[int] | None = None,
 ):
     if cfg.end_t is None:
@@ -36,17 +37,20 @@ def fetch_leaves_in_world_frame(
     mu_list, quat_list, scale_list, rgb_list, time_index_list = [], [], [], [], []
 
     for t in tqdm(range(cfg.start_t, end_t) if t_list is None else t_list):
-        mask2d = input_mask_list[t].bool()
+        mask2d = gather_mask[t].bool()
         H, W = mask2d.shape
         if cfg.subsample is not None and cfg.subsample > 1:
             mask2d[:: cfg.subsample, :: cfg.subsample] = False
 
-        dep_map = input_dep_list[t].clone()
-        cam_pcl = cams.backproject(
-            cams.get_homo_coordinate_map(H, W)[mask2d].clone(), dep_map[mask2d]
+        dep_map = dep[t].clone()
+        cam_pcl = backproject(
+            cams.get_homo_coordinate_map(H, W)[mask2d].clone(),
+            dep_map[mask2d],
+            rel_focal=cams.rel_focal,
+            cxcy_ratio=cams.cxcy_ratio,
         )
         mu = cams.trans_pts_to_world(t, cam_pcl)
-        rgb_map = input_rgb_list[t].clone()
+        rgb_map = rgb[t].clone()
         rgb = rgb_map[mask2d]
         K = cams.K(H, W)
         radius = (

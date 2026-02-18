@@ -18,9 +18,7 @@ from lib_moca.moca_misc import make_pair_list
 
 
 # class PrecomputeConfig:
-#     spatracker2: 
-
-
+#     spatracker2:
 
 
 def get_moca_processor(pre_cfg):
@@ -32,7 +30,7 @@ def get_moca_processor(pre_cfg):
             pre_cfg, "tap_mode", "bootstapir"
         ),  # "spatracker", "cotracker"
         flow_mode=getattr(pre_cfg, "flow_mode", "raft"),
-        cotracker_online_flag=getattr(pre_cfg, "cotracker_online_flag", False),
+        cotracker_online_flag=getattr(pre_cfg, "cotracker_online_flag", True),
         align_metric_flag=getattr(pre_cfg, "align_metric_flag", True),
     )
     return moca_processor
@@ -45,7 +43,6 @@ def load_imgs_from_dir(src):
     )
     img_list = [imageio.imread(osp.join(img_dir, it))[..., :3] for it in img_fns]
     return img_list, img_fns
-
 
 
 def preprocess(
@@ -184,7 +181,7 @@ if __name__ == "__main__":
 
     img_list, img_fns = load_imgs_from_dir(args.ws)
     prep_cfg = OmegaConf.load(args.cfg)
-    cli_cfg = OmegaConf.from_dotlist([arg.lstrip('--') for arg in unknown])
+    cli_cfg = OmegaConf.from_dotlist([arg.lstrip("--") for arg in unknown])
     prep_cfg = OmegaConf.merge(prep_cfg, cli_cfg)
 
     moca_processor = get_moca_processor(prep_cfg)
@@ -194,6 +191,6 @@ if __name__ == "__main__":
         img_fns=img_fns,
         ws=args.ws,
         moca_processor=moca_processor,
-        pre_cfg=prep_cfg, # type: ignore
+        pre_cfg=prep_cfg,  # type: ignore
         resample_for_dynamic=not args.skip_dynamic_resample,
     )

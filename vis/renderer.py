@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from loguru import logger as guru
-from nerfview import CameraState,RenderTabState
+from nerfview import CameraState, RenderTabState
 import os.path as osp
 
 from viser import Icon
@@ -13,7 +13,6 @@ from lib_mosca.dynamic_gs import DynSCFGaussian
 from lib_mosca.static_gs import StaticGaussian
 from lib_render.render_helper import render
 from vis.playback_panel import add_gui_playback_group
-from vis.render_panel import populate_render_tab
 from vis.utils import draw_tracks_2d_th, get_server
 from vis.viewer import DynamicViewer
 
@@ -28,7 +27,6 @@ class Renderer:
         work_dir: str,
         port: int,
     ):
-        
         self.s_model = s_model
         self.d_model = d_model
         self.device = device
@@ -38,18 +36,18 @@ class Renderer:
         server = get_server(port=port)
 
         gui_up = server.gui.add_vector3(
-        "Up Direction",
-        initial_value=(0.0, -1.0, -1.0),
-        step=0.01,
-    )
+            "Up Direction",
+            initial_value=(0.0, -1.0, -1.0),
+            step=0.01,
+        )
 
         @gui_up.on_update
         def _(_) -> None:
             server.scene.set_up_direction(gui_up.value)
-    
-        
-        
-        self.viewer = nerfview.Viewer(server=server, render_fn=self.render_fn, mode='rendering')
+
+        self.viewer = nerfview.Viewer(
+            server=server, render_fn=self.render_fn, mode="rendering"
+        )
         self._time_folder = server.gui.add_folder("Time")
         with self._time_folder:
             self._playback_guis = add_gui_playback_group(
@@ -85,7 +83,6 @@ class Renderer:
         #     self.render_tab_state = populate_render_tab(
         #         server, Path(self.work_dir) / "camera_paths", self._playback_guis[0]
         #     )
-        
 
         # self.tracks_3d = self.model.compute_poses_fg(
         #     #  torch.arange(max(0, t - 20), max(1, t), device=self.device),
@@ -99,27 +96,21 @@ class Renderer:
     ) -> "Renderer":
         guru.info(f"Loading checkpoint from {path}")
         s_model = StaticGaussian.load_from_ckpt(
-        torch.load(
-            osp.join(path, f"photometric_s_model_native_add3.pth")
-        ),
-        device=device,
+            torch.load(osp.join(path, "photometric_s_model_native_add3.pth")),
+            device=device,
         )
         s_model.eval()
         d_model = DynSCFGaussian.load_from_ckpt(
-        torch.load(
-            osp.join(path, f"photometric_d_model_native_add3.pth")
-        ),
-        device=device,
+            torch.load(osp.join(path, "photometric_d_model_native_add3.pth")),
+            device=device,
         )
         d_model.eval()
         print(f"num of nodes: {d_model.M}")
-        renderer = Renderer(s_model,d_model, device, *args, **kwargs)
+        renderer = Renderer(s_model, d_model, device, *args, **kwargs)
         return renderer
 
     @torch.inference_mode()
     def render_fn(self, camera_state: CameraState, render_tab_state: RenderTabState):
-        
-
         if render_tab_state.preview_render:
             W = render_tab_state.render_width
             H = render_tab_state.render_height
@@ -132,27 +123,19 @@ class Renderer:
         K = torch.tensor(
             [[focal, 0.0, W / 2.0], [0.0, focal, H / 2.0], [0.0, 0.0, 1.0]],
             device=self.device,
-            dtype=torch.float32
+            dtype=torch.float32,
         )
         w2c = torch.linalg.inv(
             torch.from_numpy(camera_state.c2w.astype(np.float32)).to(self.device)
         )
         t = int(self._playback_guis[0].value)
-            
-        
 
         gs5 = []
         gs5.append(self.s_model())
         gs5.append(self.d_model(t))
 
         # * identyfy the visible GS
-        render_dict = render(
-            gs5,
-            H,
-            W,
-            K=K,
-            T_cw=w2c
-        )
+        render_dict = render(gs5, H, W, K=K, T_cw=w2c)
         rgb = torch.clamp(render_dict["rgb"].permute(1, 2, 0), 0.0, 1.0)
         img = (rgb.detach().cpu().numpy() * 255).astype(np.uint8)
         # mu_cat = torch.cat([it[0] for it in gs5], 0)
@@ -222,7 +205,6 @@ class Renderer:
         # )
         # rgb = torch.clamp(render_dict["rgb"].permute(1, 2, 0), 0.0, 1.0)
         # img = (rgb.detach().cpu().numpy() * 255).astype(np.uint8)
-        
 
         # if not self.viewer._render_track_checkbox.value:
         #     img = (img.cpu().numpy() * 255.0).astype(np.uint8)

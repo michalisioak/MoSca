@@ -1,4 +1,9 @@
-from motion_scaffold import __compute_delta_Rt_ji__
+from typing import Optional
+import torch
+from lib_mosca.mosca import q2R
+
+from motion_scaffold.blending import __compute_delta_Rt_ji__
+from motion_scaffold.dualquat import Rt2dq, dq2Rt, dq2unitdq
 
 
 def __DQB_warp__(
@@ -10,7 +15,7 @@ def __DQB_warp__(
     sk_dst_node_quat,
     dyn_o,
     src_R=None,
-):
+) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
     sk_R_tq, sk_t_tq = __compute_delta_Rt_ji__(
         R_wj=q2R(sk_dst_node_quat),
         t_wj=sk_dst_node_xyz,
