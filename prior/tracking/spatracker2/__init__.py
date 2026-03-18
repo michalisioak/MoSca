@@ -145,6 +145,7 @@ def spatracker2_process_folder(
     save_name="",
     max_viz_cnt=512,
     support_ratio=0.2,
+    use_half_res=True,
 ):
     viz_dir = osp.join(working_dir, "spatracker2_viz")
     os.makedirs(viz_dir, exist_ok=True)
@@ -156,6 +157,65 @@ def spatracker2_process_folder(
         draw_invisible=True,  # False
         tracks_leave_trace=4,
     )
+
+    # Store original dimensions
+    orig_H, orig_W = img_list.shape[1:3]
+
+    # If half resolution is requested, downsample inputs
+    if use_half_res:
+        target_H, target_W = orig_H // 2, orig_W // 2
+
+        # Downsample images
+        img_list_resized = []
+        for img in img_list:
+            img_resized = cv2.resize(
+                img, (target_W, target_H), interpolation=cv2.INTER_LINEAR
+            )
+            img_list_resized.append(img_resized)
+        img_list = np.stack(img_list_resized, 0)
+
+        # Downsample depth
+        dep_list_resized = []
+        for dep in dep_list:
+            dep_resized = cv2.resize(
+                dep, (target_W, target_H), interpolation=cv2.INTER_NEAREST
+            )
+            dep_list_resized.append(dep_resized)
+        dep_list = np.stack(dep_list_resized, 0)
+
+        # Downsample sample mask
+        sample_mask_list_resized = []
+        for mask in sample_mask_list:
+            mask_resized = cv2.resize(
+                mask.astype(np.uint8),
+                (target_W, target_H),
+                interpolation=cv2.INTER_NEAREST,
+            ).astype(bool)
+            sample_mask_list_resized.append(mask_resized)
+        sample_mask_list = np.stack(sample_mask_list_resized, 0)
+
+        # Adjust K matrix for half resolution if provided
+        if K is not None:
+            if isinstance(K, np.ndarray):
+                K = K.copy()
+                if K.ndim == 2:  # Single K matrix
+                    K[0, 0] /= 2  # fx
+                    K[1, 1] /= 2  # fy
+                    K[0, 2] /= 2  # cx
+                    K[1, 2] /= 2  # cy
+                elif K.ndim == 3:  # Per-frame K matrices
+                    for t in range(len(K)):
+                        K[t, 0, 0] /= 2
+                        K[t, 1, 1] /= 2
+                        K[t, 0, 2] /= 2
+                        K[t, 1, 2] /= 2
+
+        logging.info(
+            f"Processing at half resolution: {target_H}x{target_W} (original: {orig_H}x{orig_W})"
+        )
+    else:
+        logging.info(f"Processing at original resolution: {orig_H}x{orig_W}")
+        target_H, target_W = orig_H, orig_W
 
     full_video_pt, full_dep_pt = make_spatracker_input(img_list, dep_list)
     _, T, _, H, W = full_video_pt.shape
@@ -181,34 +241,14 @@ def spatracker2_process_folder(
     video_pt = full_video_pt.clone()
     dep_pt = full_dep_pt.clone()
 
-    # vggt4track_model = VGGT4Track.from_pretrained("Yuxihenry/SpatialTrackerV2_Front")
-    # vggt4track_model.eval()
-    # vggt4track_model = vggt4track_model.to("cuda")
-
-    # print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-    # print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-    # print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
-    # print(torch.cuda.memory_summary())
-    # print(f"K shape: {K.shape}")
     torch.cuda.empty_cache()
     gc.collect()
     torch.cuda.empty_cache()
-    # with torch.no_grad():
-    #     with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-    #         # Predict attributes including cameras, depth maps, and point maps.
-    #         predictions = vggt4track_model(video_pt.cuda()/255)
-    #         extrinsic, intrinsic = predictions["poses_pred"], predictions["intrs"]
-    #         depth_map, depth_conf = predictions["points_map"][..., 2], predictions["unc_metric"]
-
-    # depth_tensor = depth_map.squeeze().cpu().numpy()
-    # extrs = np.eye(4)[None].repeat(len(depth_tensor), axis=0)
-    # extrs = extrinsic.squeeze().cpu().numpy()
-    # intrs = intrinsic.squeeze().cpu().numpy()
-    # unc_metric = depth_conf.squeeze().cpu().numpy() > 0.5
 
     tracks, visibility, pred2d = [], [], []
     num_slice = int(np.ceil(total_n_pts / chunk_size))
     chunk_size = int(np.ceil(total_n_pts / num_slice))
+
     for round in range(num_slice):
         logging.info(f"Round {round + 1}/{num_slice} ...")
         masks = sample_mask_list * depth_mask.to(sample_mask_list)
@@ -222,10 +262,12 @@ def spatracker2_process_folder(
         )
         queries = torch.cat([queries, queries_uniform], 1)
 
+        # Visualize queries at processing resolution
         viz_list = viz_queries(queries.squeeze(0), H, W, T)
         imageio.mimsave(
             osp.join(viz_dir, f"{save_name}_r={round}_quries.mp4"), viz_list
         )
+
         torch.cuda.empty_cache()
         (
             c2w_traj,
@@ -239,19 +281,25 @@ def spatracker2_process_folder(
             video,
         ) = model.forward(
             video_pt[0].cpu().numpy(),
-            #   depth=full_dep_pt[0].cpu().numpy(),
-            # intrs=intrs,
-            # intrs=K[None],
-            # extrs=extrs,
             queries=queries[0].cpu().numpy(),
             full_point=False,
             query_no_BA=True,
             stage=1,
-            # unc_metric=unc_metric,
         )
+
+        # If we processed at half resolution, scale tracks back to original resolution
+        if use_half_res:
+            # Scale 2D tracks from processing resolution to original resolution
+            track2d_pred[..., 0] *= orig_W / W  # Scale x coordinates
+            track2d_pred[..., 1] *= orig_H / H  # Scale y coordinates
+
+            # Note: 3D tracks (track3d_pred) remain in 3D space, no scaling needed
+            # Only 2D projections need to be scaled back
+
         tracks.append(track3d_pred)
         visibility.append(vis_pred.squeeze(-1))
         pred2d.append(track2d_pred)
+
     tracks = torch.cat(tracks, 1)
     visibility = torch.cat(visibility, 1)
     visibility = visibility > 0.5
@@ -260,35 +308,57 @@ def spatracker2_process_folder(
     end_t = time.time()
     logging.info(f"Time cost: {(end_t - start_t) / 60.0:.3f}min")
 
-    # efficient viz
-    viz_choice = np.random.choice(pred2d.shape[1], min(pred2d.shape[1], max_viz_cnt))
-    # print(f"tracks shape {tracks.shape}")
-    # print(f"viz_choice: {viz_choice.shape}, max: {viz_choice.max()}, dtype: {viz_choice.dtype}")
-    # print(f"tracks2d: {pred2d.shape}")
-    # print(f"visibility: {visibility.shape}")
-    # print(f"viz_choice has NaN: {np.isnan(viz_choice).any()}")
-    # print(f"viz_choice has Inf: {np.isinf(viz_choice).any()}")
-    # print(f"Number of unique indices: {len(np.unique(viz_choice))}")
-    # # print(f"viz_choice device: {viz_choice.device}")
-    # print(f"track2d_pred device: {pred2d.device}")
-    # print(f"visibility device: {visibility.device}")
-    assert visibility.shape[1] == pred2d.shape[1] == tracks.shape[1]
-    print(f"tracks shape: {tracks.shape}")
-    print(f"track value: {tracks[0][0]}")
-    # assert False
-    vis.visualize(
-        video=video_pt,
-        tracks=tracks[None, :, viz_choice, :2],
-        visibility=visibility[None, :, viz_choice],
-        filename=f"{save_name}_spatracker2_tap",
-    )
+    # For visualization at original resolution, we need to reconstruct original video
+    if use_half_res:
+        # Reload original resolution images for visualization
+        img_dir = osp.join(working_dir, "images")
+        img_fns = sorted(
+            [
+                it
+                for it in os.listdir(img_dir)
+                if it.endswith(".png") or it.endswith(".jpg")
+            ]
+        )
+        orig_img_list = [
+            imageio.imread(osp.join(img_dir, it))[..., :3] for it in img_fns
+        ]
+        orig_img_list = np.asarray(orig_img_list)
+        video_pt_orig, _ = make_spatracker_input(
+            orig_img_list, dep_list
+        )  # dep_list not used for viz
+
+        # Scale tracks back to original resolution for visualization
+        viz_tracks = pred2d[None, :, :max_viz_cnt, :2].clone()
+        viz_visibility = visibility[None, :, :max_viz_cnt].clone()
+
+        # Visualize at original resolution
+        vis.visualize(
+            video=video_pt_orig,
+            tracks=viz_tracks,
+            visibility=viz_visibility,
+            filename=f"{save_name}_spatracker2_tap",
+        )
+    else:
+        # Efficient viz at processing resolution
+        viz_choice = np.random.choice(
+            pred2d.shape[1], min(pred2d.shape[1], max_viz_cnt)
+        )
+        vis.visualize(
+            video=video_pt,
+            tracks=pred2d[None, :, viz_choice, :2],
+            visibility=visibility[None, :, viz_choice],
+            filename=f"{save_name}_spatracker2_tap",
+        )
+
     logging.info(f"Save to {save_dir} with tracks={tracks.shape}")
 
     np.savez_compressed(
         osp.join(save_dir, f"{save_name}_spatracker2_tap.npz"),
-        tracks=pred2d.cpu().numpy(),
+        tracks=pred2d.cpu().numpy(),  # Already scaled to original resolution
         visibility=visibility.cpu().numpy(),
-        K=K,  # also save intrinsic for later use if necessary, but seems because the depth is aligned to input depth, so it is not necessary
+        K=K,  # Adjusted K if half resolution was used
+        processing_resolution=f"{H}x{W}" if use_half_res else "original",
+        original_resolution=f"{orig_H}x{orig_W}",
     )
     return
 

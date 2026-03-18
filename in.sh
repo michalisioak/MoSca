@@ -1,10 +1,11 @@
 ENV_NAME=mosca
 NUMPY_VERSION=1.26.4
+set -e
 
-conda remove -n $ENV_NAME --all -y
-conda create -n $ENV_NAME gcc_linux-64=9 gxx_linux-64=9 python=3.10 numpy=$NUMPY_VERSION mkl=2023.1.0 -y
+# conda remove -n $ENV_NAME --all -y
+# conda create -n $ENV_NAME gcc_linux-64=9 gxx_linux-64=9 python=3.10 numpy=$NUMPY_VERSION mkl=2023.1.0 -y
 
-source activate $ENV_NAME
+# source activate $ENV_NAME
 
 which python
 which pip
@@ -29,16 +30,16 @@ pip install pyg_lib torch_scatter torch_geometric torch_sparse torch_cluster tor
 ################################################################################
 echo "Install other dependencies..."
 conda install xformers -c xformers -y
-pip install -r requirements.txt
+pip install -r requirements.old_newer.txt --no-build-isolation
 pip install numpy==$NUMPY_VERSION
 ################################################################################
 
 ################################################################################
 echo "Install GS..."
-pip install lib_render/simple-knn
-pip install lib_render/diff-gaussian-rasterization-alphadep-add3
-pip install lib_render/diff-gaussian-rasterization-alphadep
-pip install lib_render/gof-diff-gaussian-rasterization
+pip install lib_render/simple-knn --no-build-isolation
+pip install lib_render/diff-gaussian-rasterization-alphadep-add3 --no-build-isolation
+pip install lib_render/diff-gaussian-rasterization-alphadep --no-build-isolation
+pip install lib_render/gof-diff-gaussian-rasterization --no-build-isolation
 ################################################################################
 
 ################################################################################

@@ -1,7 +1,12 @@
 from matplotlib import pyplot as plt
 import torch, numpy as np
-from utils3d.torch import quaternion_to_matrix
-
+from pytorch3d.transforms import (
+    axis_angle_to_matrix,
+    matrix_to_axis_angle,
+    matrix_to_quaternion,
+    quaternion_to_matrix,
+    quaternion_to_axis_angle,
+)
 import logging
 import imageio
 import os, sys, os.path as osp
@@ -17,7 +22,7 @@ from lib_mosca.gs_utils.loss_helper import (
     compute_normal_loss,
 )
 from lib_mosca.scaffold_utils.viz_helper import viz_curve
-from lib_mosca.camera import MonocularCameras
+from lib_moca.camera import MonocularCameras
 from lib_render.gauspl_renderer_native import render_cam_pcl
 from lib_render.sh_utils import RGB2SH, SH2RGB
 from lib_prior.prior_loading import Saved2D
@@ -544,7 +549,6 @@ def viz2d_flow_video(
 ):
     H, W = cams.default_H, cams.default_W
     frame_list = []
-    s_mu_w, s_fr_w, s_s, s_o, s_sph = None, None, None, None, None
     if viz_bg:
         s_mu_w, s_fr_w, s_s, s_o, s_sph = s_model(0)
     prev_mu, _, s_traj, o_traj, sph_traj = d_model(
@@ -627,9 +631,6 @@ def viz2d_flow_video(
         else:
             _render_cam_id = view_cam_id
         if viz_bg:
-            assert (s_mu_w is not None) and (s_fr_w is not None) and (s_s is not None) and (s_o is not None) and (
-                s_sph is not None
-            )
             working_mu_w = torch.cat([s_mu_w, mu_w, d_mu_w], 0)
             working_fr_w = torch.cat([s_fr_w, fr_w, d_fr_w], 0)
             working_s = torch.cat([s_s, s, d_s], 0)
@@ -897,7 +898,6 @@ def viz3d_scene_flow_video(
     o = o * 0.0
 
     for viz_time in range(start_tid, end_tid + 1):
-
         _mu_w, _fr_w, _, _, _ = d_model(viz_time, 0, nn_fusion=-1)
         # draw the line
         src_mu = prev_mu
@@ -958,6 +958,14 @@ def viz3d_scene_flow_video(
             )
     return frames
 
+
+def cat_gs(m1, f1, s1, o1, c1, m2, f2, s2, o2, c2):
+    m = torch.cat([m1, m2], dim=0).contiguous()
+    f = torch.cat([f1, f2], dim=0).contiguous()
+    s = torch.cat([s1, s2], dim=0).contiguous()
+    o = torch.cat([o1, o2], dim=0).contiguous()
+    c = torch.cat([c1, c2], dim=0).contiguous()
+    return m, f, s, o, c
 
 
 def viz_o_hist(model, save_path, title_text=""):
@@ -1023,8 +1031,7 @@ def viz_dyn_hist(scf, viz_dir, postfix):
     # viz the skinning K count
     valid_sk_count = scf.topo_knn_mask.sum(-1).detach().cpu().numpy()
     fig = plt.figure(figsize=(10, 5))
-    plt.hist(valid_sk_count)
-    plt.title(f"Valid node neighbors count {scf.M}")
+    plt.hist(valid_sk_count), plt.title(f"Valid node neighbors count {scf.M}")
     plt.savefig(osp.join(viz_dir, f"valid_sk_count_{postfix}.jpg"))
     plt.close()
     return
@@ -1032,8 +1039,7 @@ def viz_dyn_hist(scf, viz_dir, postfix):
 
 def viz_N_count(N_count_list, path):
     fig = plt.figure(figsize=(8, 6))
-    plt.plot(N_count_list)
-    plt.title("Noodle Count")
+    plt.plot(N_count_list), plt.title("Noodle Count")
     plt.savefig(path)
     plt.close()
 
@@ -1162,9 +1168,7 @@ def viz_plt_missing_slot(track_mask, path, max_viz=2048):
     viz_mask = viz_mask[:, resort]
     plt.figure(figsize=(2.0 * max_viz / T, 3.0))
     plt.imshow((viz_mask * 255.0).cpu().numpy(), cmap="viridis")
-    plt.title("MissingSlot=0")
-    plt.xlabel("Sorted Noodles")
-    plt.ylabel("T")
+    plt.title("MissingSlot=0"), plt.xlabel("Sorted Noodles"), plt.ylabel("T")
     plt.tight_layout()
     plt.savefig(path)
     plt.close()
@@ -1174,9 +1178,7 @@ def viz_plt_missing_slot(track_mask, path, max_viz=2048):
     plt.figure(figsize=(5, 3))
     # use bar plot
     plt.bar(range(T), valid_count.cpu().numpy())
-    plt.title("ValidSlotCount")
-    plt.xlabel("T") 
-    plt.ylabel("ValidCount")
+    plt.title("ValidSlotCount"), plt.xlabel("T"), plt.ylabel("ValidCount")
     plt.tight_layout()
     plt.savefig(path.replace(".jpg", "_count_perframe.jpg"))
     plt.close()

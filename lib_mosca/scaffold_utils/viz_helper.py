@@ -1,7 +1,11 @@
 from matplotlib import pyplot as plt
 import torch, numpy as np
-from utils3d.torch import (
+from pytorch3d.transforms import (
+    axis_angle_to_matrix,
+    matrix_to_axis_angle,
+    matrix_to_quaternion,
     quaternion_to_matrix,
+    quaternion_to_axis_angle,
 )
 from transforms3d.euler import mat2euler, euler2mat
 import logging

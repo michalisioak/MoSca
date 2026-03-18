@@ -5,7 +5,7 @@ dep_mode: depth_anything
 tap_mode: depth_anything_spatracker2
 flow_mode: raft
 
-tap_chunk_size: 1000
+tap_chunk_size: 500
 n_track_uniform: 4000
 n_track_dynamic: 4000
 

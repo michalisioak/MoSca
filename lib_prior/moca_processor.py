@@ -524,7 +524,7 @@ class MoCaPrep:
         self, save_dir, fn_list, img_list, step_list=[1], epi_num_threads=16
     ):
         start_t = time.time()
-        logging.info(f"Generating Flow")
+        logging.info("Generating Flow")
         seed_everything(self.seed)
         self.flow_model.to(self.device)
         raft_save_dir = osp.join(save_dir, "flow_raft")
@@ -535,7 +535,7 @@ class MoCaPrep:
         torch.cuda.empty_cache()
         logging.info(f"Flow done in {(time.time() - start_t) / 60.0:.2f}min")
 
-        logging.info(f"Analysis the Epi Error")
+        logging.info("Analysis the Epi Error")
         analyze_epi(save_dir, num_threads=epi_num_threads, step_list=step_list)
         return
 
@@ -586,7 +586,7 @@ class MoCaPrep:
             # raise RuntimeError(
             #     "Need to remove the manaully forward, backward inference."
             # )
-            logging.warning(f"SHOULD UPGRADE THE FWD BWD INFERENCE")
+            logging.warning("SHOULD UPGRADE THE FWD BWD INFERENCE")
             torch.cuda.empty_cache()
             self.tap_process_func(
                 working_dir=ws,

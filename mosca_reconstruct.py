@@ -73,28 +73,46 @@ def photometric_warmup(ws, log_path, fit_cfg):
         return
     device = torch.device("cuda:0")
     logging.info(
-        f"First run static bg GS warm up to save time before joint optimization"
+        "First run static bg GS warm up to save time before joint optimization"
     )
+
+    camera_data = np.load(
+        osp.join(ws, "spatracker2_cameras", "dynamic_dep=depth_anything_cameras.npz")
+    )
+    poses = camera_data["poses"]
+    cams = MonocularCameras(
+        n_time_steps=len(poses),
+        default_H=camera_data["H"],
+        default_W=camera_data["W"],
+        init_camera_pose=poses,  # Pass the poses directly
+        delta_flag=False,  # Using independent mode
+        K=camera_data["intrinsic"],
+    ).to(device)
 
     s2d = (
         Saved2D(ws)
         .load_epi()
-        .load_dep(DEPTH_DIR, DEPTH_BOUNDARY_TH)
+        # .load_dep(DEPTH_DIR, DEPTH_BOUNDARY_TH)
+        .load_dep("spatracker2_depth", DEPTH_BOUNDARY_TH)
         .normalize_depth(median_depth=DEP_MEDIAN)
         .recompute_dep_mask(depth_boundary_th=DEPTH_BOUNDARY_TH)
+        # .load_track(
+        #     TAP_MODE, min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4)
+        # )
         .load_track(
-            TAP_MODE, min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4)
+            "spatracker2",
+            min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4),
         )
-        .rescale_perframe_depth_from_bundle(
-            bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
-        )
+        # .rescale_perframe_depth_from_bundle(
+        #     bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
+        # )
         .load_vos()
         .to(device)
     )
     s2d = set_epi_mask_to_s2d_for_bg_render(s2d, EPI_TH, device)
-    cams: MonocularCameras = MonocularCameras.load_from_ckpt(
-        torch.load(osp.join(log_path, "bundle", "bundle_cams.pth"))
-    ).to(device)
+    # cams: MonocularCameras = MonocularCameras.load_from_ckpt(
+    #     torch.load(osp.join(log_path, "bundle", "bundle_cams.pth"))
+    # ).to(device)
 
     photo_solver = DynReconstructionSolver(
         working_dir=log_path,
@@ -210,21 +228,27 @@ def scaffold_reconstruct(ws, log_path, fit_cfg):
     DYN_ID_CNT = getattr(fit_cfg, "dyn_id_cnt", 2 * 4)
     SCF_GEO_KEYFRAME_RATE = getattr(fit_cfg, "scf_geo_keyframe_rate", 4)
     DEP_MEDIAN = getattr(fit_cfg, "dep_median", 1.0)
+    CAM_OVERLOAD = getattr(fit_cfg, "cam_overload", "bundle/bundle_cams.pth")
     device = torch.device("cuda:0")
 
     # load solved camera and s2d and rescale
     s2d = (
         Saved2D(ws)
         .load_epi()
-        .load_dep(DEPTH_DIR, DEPTH_BOUNDARY_TH)
+        # .load_dep(DEPTH_DIR, DEPTH_BOUNDARY_TH)
+        .load_dep("spatracker2_depth", DEPTH_BOUNDARY_TH)
         .normalize_depth(median_depth=DEP_MEDIAN)
         .recompute_dep_mask(depth_boundary_th=DEPTH_BOUNDARY_TH)
+        # .load_track(
+        #     TAP_MODE, min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4)
+        # )
         .load_track(
-            TAP_MODE, min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4)
+            "spatracker2",
+            min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4),
         )
-        .rescale_perframe_depth_from_bundle(
-            bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
-        )
+        # .rescale_perframe_depth_from_bundle(
+        #     bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
+        # )
         .load_vos()
         .to(device)
     )
@@ -269,8 +293,20 @@ def scaffold_reconstruct(ws, log_path, fit_cfg):
             (viz_epi_mask.cpu().numpy() * 255).astype(np.uint8),
         )
 
-    cams: MonocularCameras = MonocularCameras.load_from_ckpt(
-        torch.load(osp.join(log_path, "bundle", "bundle_cams.pth"))
+    # cams: MonocularCameras = MonocularCameras.load_from_ckpt(
+    #     torch.load(osp.join(log_path, CAM_OVERLOAD))
+    # ).to(device)
+    camera_data = np.load(
+        osp.join(ws, "spatracker2_cameras", "dynamic_dep=depth_anything_cameras.npz")
+    )
+    poses = camera_data["poses"]
+    cams = MonocularCameras(
+        n_time_steps=len(poses),
+        default_H=camera_data["H"],
+        default_W=camera_data["W"],
+        init_camera_pose=poses,  # Pass the poses directly
+        delta_flag=False,  # Using independent mode
+        K=camera_data["intrinsic"],
     ).to(device)
 
     sub_t_list = [
@@ -459,6 +495,8 @@ def photometric_reconstruct(ws, log_path, fit_cfg):
     EPI_TH = getattr(fit_cfg, "epi_th", 1e-3)
     DYN_ID_CNT = getattr(fit_cfg, "dyn_id_cnt", 2 * 4)
 
+    CAM_OVERLOAD = getattr(fit_cfg, "cam_overload", "bundle/bundle_cams.pth")
+
     STATIC_GS_START_OPA = getattr(fit_cfg, "gs_static_start_opacity", 0.01)
     DYNAMIC_GS_START_OPA = getattr(fit_cfg, "gs_dynamic_start_opacity", 0.02)
 
@@ -470,15 +508,20 @@ def photometric_reconstruct(ws, log_path, fit_cfg):
     s2d = (
         Saved2D(ws)
         .load_epi()
-        .load_dep(DEPTH_DIR, DEPTH_BOUNDARY_TH)
+        # .load_dep(DEPTH_DIR, DEPTH_BOUNDARY_TH)
+        .load_dep("spatracker2_depth", DEPTH_BOUNDARY_TH)
         .normalize_depth(median_depth=DEP_MEDIAN)
         .recompute_dep_mask(depth_boundary_th=DEPTH_BOUNDARY_TH)
+        # .load_track(
+        #     TAP_MODE, min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4)
+        # )
         .load_track(
-            TAP_MODE, min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4)
+            "spatracker2",
+            min_valid_cnt=getattr(fit_cfg, "tap_loading_min_valid_cnt", 4),
         )
-        .rescale_perframe_depth_from_bundle(
-            bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
-        )
+        # .rescale_perframe_depth_from_bundle(
+        #     bundle_pth_fn=osp.join(log_path, "bundle", "bundle.pth")
+        # )
         .load_vos()
         .load_flow()
         .to(device)
@@ -489,8 +532,20 @@ def photometric_reconstruct(ws, log_path, fit_cfg):
         torch.from_numpy(track_identification["dynamic_track_mask"]).to(device),
     )
 
-    cams: MonocularCameras = MonocularCameras.load_from_ckpt(
-        torch.load(osp.join(log_path, "bundle", "bundle_cams.pth"))
+    # cams: MonocularCameras = MonocularCameras.load_from_ckpt(
+    #     torch.load(osp.join(log_path, CAM_OVERLOAD))
+    # ).to(device)
+    camera_data = np.load(
+        osp.join(ws, "spatracker2_cameras", "dynamic_dep=depth_anything_cameras.npz")
+    )
+    poses = camera_data["poses"]
+    cams = MonocularCameras(
+        n_time_steps=len(poses),
+        default_H=camera_data["H"],
+        default_W=camera_data["W"],
+        init_camera_pose=poses,  # Pass the poses directly
+        delta_flag=False,  # Using independent mode
+        K=camera_data["intrinsic"],
     ).to(device)
     scaffold = MoSca.load_from_ckpt(
         torch.load(osp.join(log_path, "mosca", "mosca.pth"))

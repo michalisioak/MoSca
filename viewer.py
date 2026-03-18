@@ -8,7 +8,7 @@ from loguru import logger
 
 from lib_mosca.dynamic_gs import DynSCFGaussian
 from lib_mosca.static_gs import StaticGaussian
-from lib_render.render_helper import render_new
+from lib_render.render_helper import render
 
 import viser
 import nerfview
@@ -161,14 +161,18 @@ def main(ws: str, port=8890, device: str = "cuda"):
     server = viser.ViserServer(verbose=False, port=port)
 
     s_model = StaticGaussian.load_from_ckpt(
-        torch.load(osp.join(ws, "photometric_s_model_native_add3.pth")),
+        torch.load(
+            osp.join(ws, "photometric_s_model_native_add3.pth"), map_location=rdevice
+        ),
         device=rdevice,
-    )
+    ).to(rdevice)
     s_model.eval()
     d_model = DynSCFGaussian.load_from_ckpt(
-        torch.load(osp.join(ws, "photometric_d_model_native_add3.pth")),
+        torch.load(
+            osp.join(ws, "photometric_d_model_native_add3.pth"), map_location=rdevice
+        ),
         device=rdevice,
-    )
+    ).to(rdevice)
     # d_model.set_inference_mode()
 
     gui_up = server.gui.add_vector3(
@@ -222,7 +226,7 @@ def main(ws: str, port=8890, device: str = "cuda"):
             gs5 += scaffold_viz(t=t, d_model=d_model, pad_sph_dim=gs5[0][-1].shape[1])
 
         # * identyfy the visible GS
-        render_dict = render_new(gs5, H, W, K=K, T_cw=w2c)
+        render_dict = render(gs5, H, W, K=K, T_cw=w2c)
         rgb = torch.clamp(render_dict["rgb"].permute(1, 2, 0), 0.0, 1.0)
         img = (rgb.detach().cpu().numpy() * 255).astype(np.uint8)
         return img

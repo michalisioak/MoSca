@@ -105,12 +105,8 @@ class MoSca(nn.Module):
         self.set_multi_level(
             mlevel_arap_flag, mlevel_list, mlevel_k_list, mlevel_w_list
         )
-        self.register_buffer(
-            "mlevel_detach_nn_flag", torch.tensor(mlevel_detach_nn_flag)
-        )
-        self.register_buffer(
-            "mlevel_detach_self_flag", torch.tensor(mlevel_detach_self_flag)
-        )
+        self.register_buffer("mlevel_detach_nn_flag", torch.tensor(mlevel_detach_nn_flag))
+        self.register_buffer("mlevel_detach_self_flag", torch.tensor(mlevel_detach_self_flag))
         self.register_buffer("topo_knn_ind", torch.zeros(0).long())
         self.register_buffer("topo_knn_mask", torch.zeros(0).bool())
         self.register_buffer(
@@ -144,10 +140,8 @@ class MoSca(nn.Module):
             torch.Tensor([self.blending_mehtod_int_dict[skinning_method]]).long(),
         )
         self.set_skinning_method()
-
-        self.register_buffer(
-            "w_corr_maintain_sum_flag", torch.tensor(w_corr_maintain_sum_flag)
-        )
+        
+        self.register_buffer("w_corr_maintain_sum_flag", torch.tensor(w_corr_maintain_sum_flag))
 
         # * Buffers
         if t_list is None:
@@ -160,9 +154,9 @@ class MoSca(nn.Module):
 
         self.min_node_num = min_node_num
         self.max_node_num = max_node_num
-        assert self.M >= self.min_node_num, (
-            f"Node num {self.M} is less than {self.min_node_num}"
-        )
+        assert (
+            self.M >= self.min_node_num
+        ), f"Node num {self.M} is less than {self.min_node_num}"
         self.to(init_device)
         self.summary()
         return
@@ -259,7 +253,7 @@ class MoSca(nn.Module):
         if "w_corr_maintain_sum_flag" not in ckpt.keys():
             # old ckpt
             ckpt["w_corr_maintain_sum_flag"] = torch.tensor(False)
-
+        
         scf = cls(
             node_xyz=node_xyz,
             node_certain=node_certain,
@@ -346,7 +340,7 @@ class MoSca(nn.Module):
         self.topo_knn_ind = new_topo_knn_ind.clone()
         self.topo_knn_mask = new_topo_knn_mask.clone()
         if verbose:
-            logging.info(f"Topology updated in {time.time() - start_t:.2f}s")
+            logging.info(f"Topology updated in {time.time()-start_t:.2f}s")
         torch.cuda.empty_cache()
         return
 
@@ -383,11 +377,12 @@ class MoSca(nn.Module):
             )
             # all diag elements of square should be huge 1e10
             square = square + torch.eye(append_M).to(square) * 1e10
-
+           
             new_D1 = torch.cat([self._D_topo, bottom.T], 1)
             new_D2 = torch.cat([bottom, square], 1)
             new_D = torch.cat([new_D1, new_D2], 0)
             self._D_topo = new_D
+           
 
         # update the knn and mask
         assert len(self.topo_knn_ind) == old_M
@@ -405,7 +400,7 @@ class MoSca(nn.Module):
         if multilevel_update_flag:
             self.update_multilevel_arap_topo(verbose=verbose)
         if verbose:
-            logging.info(f"Topology updated in {time.time() - start_t:.2f}s")
+            logging.info(f"Topology updated in {time.time()-start_t:.2f}s")
         torch.cuda.empty_cache()
         return
 
@@ -419,9 +414,9 @@ class MoSca(nn.Module):
         # * do some other checks here
         if len(self._node_grouping.unique()) != len(self.unique_grouping):
             print()
-        assert len(self._node_grouping.unique()) == len(self.unique_grouping), (
-            f"{len(self._node_grouping.unique())} vs {len(self.unique_grouping)}"
-        )
+        assert len(self._node_grouping.unique()) == len(
+            self.unique_grouping
+        ), f"{len(self._node_grouping.unique())} vs {len(self.unique_grouping)}"
 
         # get eval-train state
         assert self.training, "Topology update must be in training mode"
@@ -471,7 +466,7 @@ class MoSca(nn.Module):
         if multilevel_update_flag:
             self.update_multilevel_arap_topo(verbose=verbose)
         if verbose:
-            logging.info(f"Topology updated in {time.time() - start_t:.2f}s")
+            logging.info(f"Topology updated in {time.time()-start_t:.2f}s")
         torch.cuda.empty_cache()
         return
 
@@ -628,11 +623,9 @@ class MoSca(nn.Module):
             assert len(skinning_weight_correction) == len(query_xyz)
             assert skinning_weight_correction.shape[1] == self.skinning_k
             if self.w_corr_maintain_sum_flag:
-                tmp_sk_w_sum = abs(sk_w_un).sum(-1)[:, None]  # N,1
+                tmp_sk_w_sum = abs(sk_w_un).sum(-1)[:, None] # N,1
                 sk_w_un = abs(sk_w_un + skinning_weight_correction)
-                new_sk_w_sum = torch.clamp(abs(sk_w_un).sum(-1), min=1e-6)[
-                    :, None
-                ]  # N,1
+                new_sk_w_sum = torch.clamp(abs(sk_w_un).sum(-1), min=1e-6)[:, None] # N,1
                 factor = tmp_sk_w_sum / new_sk_w_sum
                 sk_w_un = sk_w_un * factor
             else:
@@ -749,7 +742,7 @@ class MoSca(nn.Module):
             # assert not self.fixed_topology_flag, "Not support fixed_topology_flag"
             # self.update_topology()  # !
             self.incremental_topology()
-        logging.info(f"Grow nodes in {time.time() - start_t:.2f}s")
+        logging.info(f"Grow nodes in {time.time()-start_t:.2f}s")
         return True
 
     @torch.no_grad()
@@ -985,7 +978,7 @@ class MoSca(nn.Module):
                         nearest_node_ind[mask_gid] = _node_all_id[node_mask][
                             nearest_node_ind_gid
                         ].int()
-                assert (nearest_node_ind >= 0).all(), f"{(nearest_node_ind < 0).sum()}"
+                assert (nearest_node_ind >= 0).all(), f"{(nearest_node_ind<0).sum()}"
                 ret_id[mask] = nearest_node_ind.int()
             else:
                 _, nearest_node_ind, _ = knn_points(
@@ -1338,9 +1331,9 @@ def __compute_multilevel_topo_ind_from_dist__(
     dist, K_list: list, subsample_units: list, shrink_level=False, verbose=False
 ):
     torch.cuda.empty_cache()
-    assert not shrink_level, (
-        "Warning, shrink the level will makes the multi-level arap not helping!, shoudl always do dense!"
-    )
+    assert (
+        not shrink_level
+    ), "Warning, shrink the level will makes the multi-level arap not helping!, shoudl always do dense!"
     # dist: N,N, K_list and subsample_unit list are list of knn and subsample units
     N, _ = dist.shape
     current_set = torch.arange(N, device=dist.device)
@@ -1402,7 +1395,7 @@ def resample_curve(D, sample_margin, mask=None, verbose=False):
     sampled_inds = torch.sort(sampled_inds).values
     if verbose:
         logging.info(
-            f"SCF Resample with th={sample_margin:.4f} N={len(sampled_inds)} out of {N} ({len(sampled_inds) / N * 100.0:.2f}%)"
+            f"SCF Resample with th={sample_margin:.4f} N={len(sampled_inds)} out of {N} ({len(sampled_inds)/N * 100.0:.2f}%)"
         )
     assert sampled_inds.max() < N and sampled_inds.min() >= 0
     return sampled_inds
@@ -1435,9 +1428,8 @@ def compute_arap(
     local_coord_len = local_coord.norm(dim=-1, p=2)  # T,N,K
     # the coordinate should be similar
     # the metric should be similar
-    loss_coord, loss_len = (
-        torch.tensor(0.0).to(local_coord),
-        torch.tensor(0.0).to(local_coord),
+    loss_coord, loss_len = torch.tensor(0.0).to(local_coord), torch.tensor(0.0).to(
+        local_coord
     )
     for shift, _w in zip(temporal_diff_shift, temporal_diff_weight):
         diff_coord = (local_coord[:-shift] - local_coord[shift:]).norm(dim=-1)

@@ -19,7 +19,7 @@ from pytorch3d.ops import knn_points
 from dynamic_gs import DynSCFGaussian
 from static_gs import StaticGaussian
 from mosca import MoSca
-from camera import MonocularCameras
+from lib_moca.camera import MonocularCameras
 from photo_recon_utils import fetch_leaves_in_world_frame, estimate_normal_map
 from lib_render.render_helper import GS_BACKEND, render, RGB2SH
 from lib_prior.prior_loading import Saved2D
@@ -874,6 +874,15 @@ class DynReconstructionSolver:
                 and step < d_gs_ctrl_end
                 and d_flag
             ):
+                if corr_exe_flag and step > dyn_node_densify_record_start_steps:
+                    # record the geo gradient
+                    for corr_render_dict in corr_render_dict_list:
+                        d_model.record_corr_grad(
+                            # ! normalize the gradient by loss weight.
+                            corr_render_dict["viewspace_points"].grad[-d_model.N :]
+                            / lambda_track,
+                            corr_render_dict["visibility_filter"][-d_model.N :],
+                        )
                 apply_gs_control(
                     render_list=render_dict_list,
                     model=d_model,
@@ -884,16 +893,6 @@ class DynReconstructionSolver:
                     record_flag=(not corr_exe_flag)
                     or (GS_BACKEND not in ["native_add3"]),
                 )
-
-                if corr_exe_flag and step > dyn_node_densify_record_start_steps:
-                    # record the geo gradient
-                    for corr_render_dict in corr_render_dict_list:
-                        d_model.record_corr_grad(
-                            # ! normalize the gradient by loss weight.
-                            corr_render_dict["viewspace_points"].grad[-d_model.N :]
-                            / lambda_track,
-                            corr_render_dict["visibility_filter"][-d_model.N :],
-                        )
 
             # d_model to s_model transfer [2] append to static model
             if dynamic_to_static_transfer_flag:

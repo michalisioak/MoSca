@@ -64,7 +64,7 @@ class DynSCFGaussian(nn.Module):
         min_scale=0.0,
         max_sph_order=0,
         device=torch.device("cuda:0"),
-        max_node_num=100000,  # 16384,
+        max_node_num=100000, #16384,
         leaf_local_flag=True,  # save nodes to local nodes
         init_N=None,
         node_ctrl=True,
@@ -196,13 +196,13 @@ class DynSCFGaussian(nn.Module):
 
     def summary(self, lite=False):
         logging.info(
-            f"DenseDynGaussian: {self.N / 1000.0:.1f}K points; {self.M} Nodes; K={self.scf.skinning_k}; and {self.T} time step"
+            f"DenseDynGaussian: {self.N/1000.0:.1f}K points; {self.M} Nodes; K={self.scf.skinning_k}; and {self.T} time step"
         )
         if lite:
             return
         # logging.info number of parameters per pytorch sub module
         for name, param in self.named_parameters():
-            logging.info(f"{name}, {param.numel() / 1e6:.3f}M")
+            logging.info(f"{name}, {param.numel()/1e6:.3f}M")
         logging.info("-" * 30)
         logging.info(
             f"ED MODEL DEBUG: w_corr: max={self._skinning_weight.max()}, min={self._skinning_weight.min()}, mean={self._skinning_weight.mean()}"
@@ -225,9 +225,9 @@ class DynSCFGaussian(nn.Module):
             y = (x - min_s_value) / (max_s_value - min_s_value) + 1e-5
             y = torch.clamp(y, min=1e-5, max=1 - 1e-5)
             y = torch.logit(y)
-            assert not torch.isnan(y).any(), (
-                f"{x.min()}, {x.max()}, {y.min()}, {y.max()}"
-            )
+            assert not torch.isnan(
+                y
+            ).any(), f"{x.min()}, {x.max()}, {y.min()}, {y.max()}"
             return y
 
         def o_act(x):
@@ -447,9 +447,9 @@ class DynSCFGaussian(nn.Module):
             # sph = sph[filter_mask]
             # ! do this by mask the opacity to zero
             o = o * filter_mask[:, None].float()  # ! mask the opacity to zero
-            assert not self.return_cate_colors_flag, (
-                " not support cate color in nn fusion"
-            )
+            assert (
+                not self.return_cate_colors_flag
+            ), " not support cate color in nn fusion"
         if self.return_cate_colors_flag:
             # logging.warning(f"VIZ purpose, return the cate-color")
             cate_sph, _ = self.get_cate_color()
@@ -725,7 +725,7 @@ class DynSCFGaussian(nn.Module):
 
         node_prune_mask = prune_mask_sk & prune_mask_carry
         logging.info(
-            f"Prune {node_prune_mask.sum()} nodes (max_sk<th={prune_sk_th}) with carrying check ({node_prune_mask.float().mean() * 100.0:.3f}%)"
+            f"Prune {node_prune_mask.sum()} nodes (max_sk<th={prune_sk_th}) with carrying check ({node_prune_mask.float().mean()*100.0:.3f}%)"
         )
 
         prune_M = node_prune_mask.sum().item()
@@ -747,7 +747,7 @@ class DynSCFGaussian(nn.Module):
                 self.scf.topo_knn_ind[self.attach_ind]
             ]
             logging.warning(
-                f"Prune under surface mode, check {sk_corr_affect_mask.sum()}({sk_corr_affect_mask.float().mean() * 100:.3f}%) sk_corr to be updated"
+                f"Prune under surface mode, check {sk_corr_affect_mask.sum()}({sk_corr_affect_mask.float().mean()*100:.3f}%) sk_corr to be updated"
             )
             # ! later make these position sk to be zero
 
@@ -762,6 +762,7 @@ class DynSCFGaussian(nn.Module):
 
         # now update the sk corr again, make sure the updated = 0.0
         if self.w_correction_flag:
+
             _, sk_w, sk_w_sum, _, _ = self.scf.get_skinning_weights(
                 query_xyz=self.get_xyz(),
                 query_t=self.ref_time,
@@ -786,12 +787,9 @@ class DynSCFGaussian(nn.Module):
     ########
     @torch.no_grad()
     def gradient_based_node_densification(
-        self,
-        optimizer,
-        gradient_th,
-        resample_factor=1.0,
-        max_gs_per_new_node=100000,  # 32
+        self, optimizer, gradient_th, resample_factor=1.0, max_gs_per_new_node=100000 #32
     ):
+
         grad = self.corr_gradient_accum / (self.corr_gradient_denom + 1e-6)
         candidate_mask = grad > gradient_th  # N
 
@@ -894,9 +892,9 @@ class DynSCFGaussian(nn.Module):
         self.attach_ind = torch.cat(
             [self.attach_ind, new_attach_ind.to(self.attach_ind)], dim=0
         )
-        assert self.attach_ind.max() < self.scf.M, (
-            f"{self.attach_ind.max()}, {self.scf.M}"
-        )
+        assert (
+            self.attach_ind.max() < self.scf.M
+        ), f"{self.attach_ind.max()}, {self.scf.M}"
         self.ref_time = torch.cat(
             [self.ref_time, self.ref_time.clone()[new_gs_ind]], dim=0
         )

@@ -15,12 +15,13 @@ import torch.nn.functional as F
 from gs_utils.gs_optim_helper import *
 import logging
 
-from utils3d.torch import (
+from pytorch3d.transforms import (
     matrix_to_axis_angle,
     axis_angle_to_matrix,
     quaternion_to_matrix,
     matrix_to_quaternion,
 )
+from pytorch3d.ops import knn_points
 
 
 def sph_order2nfeat(order):
@@ -111,7 +112,6 @@ class StaticGaussian(nn.Module):
             f"Resume: Max scale: {model.max_scale}, Min scale: {model.min_scale}, Max sph order: {model.max_sph_order}"
         )
         model._init_act(model.max_scale, model.min_scale)
-        model.to(device)
         return model
 
     def summary(self):
@@ -449,7 +449,7 @@ class StaticGaussian(nn.Module):
             (
                 selected_pts_mask,
                 torch.zeros(
-                    int(N * selected_pts_mask.sum().item()), device=self.device, dtype=torch.bool
+                    N * selected_pts_mask.sum(), device=self.device, dtype=bool
                 ),
             )
         )

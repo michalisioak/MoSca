@@ -1,6 +1,6 @@
 import logging
 import os
-import  os.path as osp
+import os.path as osp
 import sys
 import cv2
 from numpy import ndarray
@@ -15,32 +15,40 @@ import torch
 from depth_anything_3.api import DepthAnything3
 from depth_utils import viz_depth_list, save_depth_list
 
-def get_depth_anything_model(device = "cuda"):
-    model = DepthAnything3.from_pretrained("depth-anything/DA3METRIC-LARGE")
+
+def get_depth_anything_model(device="cuda"):
+    model = DepthAnything3.from_pretrained("depth-anything/DA3NESTED-GIANT-LARGE-1.1")
     model.to(device=device)
     model.eval()
     return model
 
+
+@torch.no_grad()
 def depth_anything_proccess_folder(
     model: DepthAnything3,
     img_list: ndarray,
     fn_list: list[str],
-    dst:str,
+    dst: str,
     invalid_mask_list=None,
 ):
     print("Depth-Anything processing...")
     os.makedirs(dst, exist_ok=True)
     T, H, W, C = img_list.shape
-    dep_list_unscaled = model.inference(list(img_list), ref_view_strategy="middle",process_res=max(H,W),).depth
+    dep_list_unscaled = model.inference(
+        list(img_list),
+        ref_view_strategy="middle",
+        process_res=350,
+    ).depth
     dep_list = []
     for dep in dep_list_unscaled:
         dep = cv2.resize(dep, (W, H), interpolation=cv2.INTER_NEAREST_EXACT)
         dep_list.append(dep)
     dep_list = np.asarray(dep_list)
-    save_depth_list(dep_list,fn_list,dst,invalid_mask_list)
+    save_depth_list(dep_list, fn_list, dst, invalid_mask_list)
     viz_depth_list(dep_list, dst + ".mp4")
     torch.cuda.empty_cache()
     return
+
 
 if __name__ == "__main__":
     device = "cuda"
@@ -49,7 +57,7 @@ if __name__ == "__main__":
     src = osp.expanduser(src)
     fns = os.listdir(src)
     fns.sort()
-    fn_list =  [fn for fn in fns if fn.endswith(".jpg") or fn.endswith(".png")]
+    fn_list = [fn for fn in fns if fn.endswith(".jpg") or fn.endswith(".png")]
 
     model = get_depth_anything_model(device=device)
     depth_anything_proccess_folder(

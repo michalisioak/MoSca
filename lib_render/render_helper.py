@@ -2,6 +2,9 @@ import os, sys, os.path as osp
 import torch
 
 sys.path.append(osp.dirname(osp.abspath(__file__)))
+# sys.path.append(osp.join(osp.dirname(osp.abspath(__file__)), ".."))
+
+# get from env variable
 try:
     GS_BACKEND = os.environ["GS_BACKEND"]
 except:
@@ -58,14 +61,15 @@ def render(
     mu_cam = torch.einsum("ij,nj->ni", R_cw, mu) + t_cw[None]
     fr_cam = torch.einsum("ij,njk->nik", R_cw, fr)
 
+    # render
     render_dict = render_cam_pcl(
         mu_cam,
         fr_cam,
         s,
         o,
-        color_feat=sph,
-        H=H,
-        W= W,
+        sph,
+        H,
+        W,
         CAM_K=K,
         bg_color=bg_color,
         colors_precomp=colors_precomp,
@@ -132,110 +136,3 @@ def fast_bg_compose_render(bg_cache_dict, render_dict, bg_color=[1.0, 1.0, 1.0])
         "dyn_dep": fg_dep,
         "dyn_alpha": fg_alpha,
     }
-
-def render_new(
-    gs_param,
-    H,
-    W,
-    K,
-    T_cw,
-    bg_color=[1.0, 1.0, 1.0],
-    scale_factor=1.0,
-    opa_replace=None,
-    bg_cache_dict=None,
-    colors_precomp=None,
-    add_buffer=None,
-):
-    if torch.is_tensor(gs_param[0]):
-        mu, fr, s, o, sph = gs_param
-    else:
-        mu, fr, s, o, sph = gs_param[0]
-        for i in range(1, len(gs_param)):
-            mu = torch.cat([mu, gs_param[i][0]], 0)
-            fr = torch.cat([fr, gs_param[i][1]], 0)
-            s = torch.cat([s, gs_param[i][2]], 0)
-            o = torch.cat([o, gs_param[i][3]], 0)
-            sph = torch.cat([sph, gs_param[i][4]], 0)
-    
-    if opa_replace is not None:
-        assert isinstance(opa_replace, float)
-        o = torch.ones_like(o) * opa_replace
-    s = s * scale_factor
-
-    from utils3d.torch import matrix_to_quaternion
-    quats = matrix_to_quaternion(fr)  # shape [N, 4]
-
-    viewmats = T_cw.unsqueeze(0)  # add batch dimension [1, 4, 4]
-
-    Ks = K.unsqueeze(0)  # shape [1, 3, 3]
-    
-    from gsplat import rasterization
-    o = o[...,0]
-    N = len(sph)
-    shs_view = sph.reshape(N, -1, 3)  # N, Deg, Channels
-    _deg = shs_view.shape[1]
-    if _deg == 1:
-        active_sph_order = 0
-    elif _deg == 4:
-        active_sph_order = 1
-    elif _deg == 9:
-        active_sph_order = 2
-    elif _deg == 16:
-        active_sph_order = 3
-    else:
-        raise ValueError(f"Unexpected SH degree: {_deg}")
-    
-    R_cw = T_cw[:3, :3]
-    t_cw = T_cw[:3, 3]
-    mu_cam = torch.einsum("ij,nj->ni", R_cw, mu) + t_cw[None]
-    shs_view=shs_view.permute(0, 1, 2)
-    rendered_image, rendered_alpha, aux_dict = rasterization(
-        means=mu,  # World coordinates
-        quats=quats,  # Quaternions in world frame
-        scales=s,
-        opacities=o,
-        colors=shs_view,
-        viewmats=viewmats,  # World-to-camera
-        Ks=Ks,
-        width=W,
-        height=H,
-        sh_degree=active_sph_order,
-        render_mode='RGB+D',  # or 'RGB+D' if you need depth
-        # Use defaults for other parameters or add them as needed
-        near_plane=0.01,
-        far_plane=1000.0,
-        tile_size=16,
-        rasterize_mode='classic',
-        packed=False,
-        
-        
-    )
-
-    
-    
-    render_dict = {
-        'alpha': rendered_alpha.squeeze(0),
-        "rgb": rendered_image[0][...,0:3].permute(2,0,1),
-        "dep": rendered_image[0][..., 3:4].permute(2,0,1),
-        "alpha": rendered_alpha[0].permute(2,0,1),
-        "visibility_filter": (aux_dict["radii"] > 0).all(-1).any(0),
-        "radii": torch.sqrt(aux_dict["radii"][0][:, 0] * aux_dict["radii"][0][:, 1]),
-        "viewspace_points": mu_cam,
-    }
-
-    # print(aux_dict.keys())
-
-    assert render_dict["viewspace_points"] is not None
-
-    for key in render_dict:
-        value = render_dict[key]
-        print(f"{key}: {value.shape}")
-
-    return render_dict
-
-# if GS_BACKEND == 'gsplat':
-#     render = render_new
-# else:
-#     render = render_old
-
-# render = render_new

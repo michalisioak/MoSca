@@ -4,7 +4,7 @@ depth_boundary_th: 1.0
 dep_mode: depth_anything
 flow_mode: raft
 depth_dirname: depth_anything_depth
-tap_mode: depth_anything_spatracker2
+tap_mode: bootstapir
 
 tap_chunk_size: 1000
 n_track_uniform: 4000
@@ -14,5 +14,5 @@ n_track_dynamic: 4000
 flow_steps: [1, 3]
 epi_num_threads: 16 # Null
 
-align_metric_flag: True
+align_metric_flag: False
 boundary_enhance_th: -1

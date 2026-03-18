@@ -1,4 +1,4 @@
-exp_name: depth_anything_spatracker2
+exp_name: vggt_3nth_spatracker2
 mode: iphone
 dep_mode: depth_anything
 depth_dirname: depth_anything_depth
@@ -17,7 +17,7 @@ get_curve_refilter_remove_shaking_curve: False
 depth_boundary_th: 1.0
 
 # ! manually set the GT camera and focal lr to zero
-# init_gt_camera: True
+init_gt_camera: False
 # ba_lr_cam_f: 0.0
 # ba_lr_dep_c: 0.0
 # ba_lr_dep_s: 0.0

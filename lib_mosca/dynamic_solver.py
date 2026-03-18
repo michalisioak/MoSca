@@ -8,11 +8,9 @@ from matplotlib import pyplot as plt
 import imageio
 import open3d as o3d
 
-from lib_prior.prior_loading import Saved2D
-
 sys.path.append(osp.dirname(osp.abspath(__file__)))
 
-from camera import MonocularCameras
+from lib_moca.camera import MonocularCameras
 from dynamic_solver_utils import prepare_track_buffers, get_world_points
 from mosca import MoSca
 from scaffold_utils.viz_helper import (
@@ -24,13 +22,11 @@ from scaffold_utils.viz_helper import (
 
 def detect_sharp_changes_in_curve(track_mask, curve, max_vel_th, valid_type="and"):
     assert len(track_mask) >= 2, "too short!"
-    valid = None
     diff = (curve[:-1] - curve[1:]).norm(dim=-1)  # T-1,N
     if valid_type == "and":
         valid = track_mask[:-1] * track_mask[1:]  # both side are valid
     elif valid_type == "or":
         valid = (track_mask[:-1] + track_mask[1:]) > 0  # one is valid
-    assert valid is not None
     to_next_diff = torch.cat([diff, torch.zeros_like(diff[:1])], 0)
     to_prev_diff = torch.cat([torch.zeros_like(diff[:1]), diff], 0)
     to_next_valid = torch.cat([valid, torch.ones_like(valid[:1])], 0)
@@ -109,7 +105,7 @@ def line_segment_init(track_mask, point_ref):
 
 
 def get_dynamic_curves(
-    s2d: Saved2D,
+    s2d,
     cams: MonocularCameras,
     return_all_curves=False,
     # filter of 2D tracks to avoid the fg-bg error track flickering
@@ -155,7 +151,7 @@ def get_dynamic_curves(
     # ! the subsample may lead to all empty track, which will be filtered out later by the min valid cnt!
 
     if track.shape[-1] == 3:
-        logging.info("SpaT mode, direct use 3D Track")
+        logging.info(f"SpaT mode, direct use 3D Track")
         # spa tracker model
         # manually homo list
         homo_list = __int2homo_coord__(track[..., :2], s2d.H, s2d.W)
@@ -257,7 +253,7 @@ def get_dynamic_curves(
             curve_xyz = line_segment_init(track_mask, curve_xyz)
 
     else:
-        logging.info("2D track mode, use line segment to fill")
+        logging.info(f"2D track mode, use line segment to fill")
         homo_list, dep_list, rgb_list = prepare_track_buffers(
             s2d, track[..., :2], track_mask, t_list
         )
@@ -366,7 +362,7 @@ def __int2homo_coord__(track_uv, H, W):
 
 
 def __compute_physical_losses__(
-    scf: MoSca,
+    scf,
     temporal_diff_shift: list,
     temporal_diff_weight: list,
     max_time_window: int,
@@ -444,7 +440,6 @@ def geometry_scf_init(
     torch.cuda.empty_cache()
     os.makedirs(viz_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
-    step = None
 
     if square_loss_flag:
         raise RuntimeError(
@@ -682,7 +677,7 @@ def geometry_scf_init(
                 ]
             ):
                 plt.subplot(2, 11, plt_i + 1)
-                _ = plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
+                plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
 
             plt.tight_layout()
             plt.savefig(
@@ -690,7 +685,7 @@ def geometry_scf_init(
             )
             plt.close()
 
-    plt.figure(figsize=(25, 7))
+    fig = plt.figure(figsize=(25, 7))
     for plt_i, plt_pack in enumerate(
         [
             ("loss", loss_list),
@@ -723,7 +718,7 @@ def geometry_scf_init(
         ]
     ):
         plt.subplot(2, 11, plt_i + 1)
-        _ = plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
+        plt.plot(plt_pack[1]), plt.title(plt_pack[0]), plt.yscale("log")
     plt.tight_layout()
     plt.savefig(osp.join(log_dir, f"{prefix}dynamic_scaffold_init.jpg"))
     plt.close()
@@ -776,7 +771,7 @@ def __draw_graph__(t, scf: MoSca, line_N=16, level=-1):
 
 
 @torch.no_grad()
-def __draw_gs_point_line__(start: torch.Tensor, end, n=32) -> torch.Tensor:
+def __draw_gs_point_line__(start, end, n=32):
     # start, end is N,3 tensor
     line_dir = end - start
     xyz = (
