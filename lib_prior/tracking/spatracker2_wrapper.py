@@ -34,7 +34,7 @@ from spatracker2.models.predictor import Predictor
 
 
 def get_spatracker2(device):
-    model = Predictor.from_pretrained("Yuxihenry/SpatialTrackerV2-Offline")
+    model = Predictor.from_pretrained("Yuxihenry/SpatialTrackerV2-Online")
     # model.spatrack.track_num = 6
     model.eval()
     model.to(device)
@@ -169,7 +169,7 @@ def spatracker2_process_folder(
     save_name="",
     max_viz_cnt=512,
     support_ratio=0.2,
-    sample_every_n=6,
+    sample_every_n=1,
 ):
     """
     Process video by sampling every nth frame and interpolating the rest.
@@ -202,25 +202,25 @@ def spatracker2_process_folder(
     full_video_pt, full_dep_pt = make_spatracker_input(sampled_imgs, sampled_deps)
     _, T_sampled, _, H, W = full_video_pt.shape
 
-    vggt4track_model = VGGT4Track.from_pretrained("Yuxihenry/SpatialTrackerV2_Front")
-    vggt4track_model.eval()
-    vggt4track_model = vggt4track_model.to("cuda")
+    # vggt4track_model = VGGT4Track.from_pretrained("Yuxihenry/SpatialTrackerV2_Front")
+    # vggt4track_model.eval()
+    # vggt4track_model = vggt4track_model.to("cuda")
 
-    with torch.no_grad():
-        with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-            # Predict attributes including cameras, depth maps, and point maps.
-            predictions = vggt4track_model(full_video_pt.cuda() / 255)
-            extrinsic, intrinsic = predictions["poses_pred"], predictions["intrs"]
-            depth_map, depth_conf = (
-                predictions["points_map"][..., 2],
-                predictions["unc_metric"],
-            )
+    # with torch.no_grad():
+    #     with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+    #         # Predict attributes including cameras, depth maps, and point maps.
+    #         predictions = vggt4track_model(full_video_pt.cuda() / 255)
+    #         extrinsic, intrinsic = predictions["poses_pred"], predictions["intrs"]
+    #         depth_map, depth_conf = (
+    #             predictions["points_map"][..., 2],
+    #             predictions["unc_metric"],
+    #         )
 
-    depth_tensor = depth_map.squeeze().cpu().numpy()
-    extrs = np.eye(4)[None].repeat(len(depth_tensor), axis=0)
-    extrs = extrinsic.squeeze().cpu().numpy()
-    intrs = intrinsic.squeeze().cpu().numpy()
-    unc_metric = depth_conf.squeeze().cpu().numpy() > 0.5
+    # depth_tensor = depth_map.squeeze().cpu().numpy()
+    # extrs = np.eye(4)[None].repeat(len(depth_tensor), axis=0)
+    # extrs = extrinsic.squeeze().cpu().numpy()
+    # intrs = intrinsic.squeeze().cpu().numpy()
+    # unc_metric = depth_conf.squeeze().cpu().numpy() > 0.5
 
     # Process with original function on sampled frames
     tracks_sampled, visibility_sampled, pred2d_sampled = [], [], []
@@ -262,10 +262,10 @@ def spatracker2_process_folder(
                 queries=queries[0].cpu().numpy(),
                 full_point=False,
                 query_no_BA=True,
-                depth=depth_tensor,
-                intrs=intrs,
-                extrs=extrs,
-                unc_metric=unc_metric,
+                # depth=depth_tensor,
+                # intrs=intrs,
+                # extrs=extrs,
+                # unc_metric=unc_metric,
                 stage=1,
                 support_frame=len(full_video_pt[0]) - 1,
             )
@@ -285,67 +285,67 @@ def spatracker2_process_folder(
 
     # Convert extrinsics to a more interpolation-friendly format
     # extrinsics are T_wc (world-to-camera) matrices
-    camera_poses_sampled = extrs  # Shape: [T_sampled, 4, 4]
+    # camera_poses_sampled = extrs  # Shape: [T_sampled, 4, 4]
 
     # For interpolation, we'll work with rotation matrices and translations separately
-    rotations_sampled = camera_poses_sampled[:, :3, :3]  # [T_sampled, 3, 3]
-    translations_sampled = camera_poses_sampled[:, :3, 3]  # [T_sampled, 3]
+    # rotations_sampled = camera_poses_sampled[:, :3, :3]  # [T_sampled, 3, 3]
+    # translations_sampled = camera_poses_sampled[:, :3, 3]  # [T_sampled, 3]
 
     # Convert rotations to quaternions for smoother interpolation
-    from scipy.spatial.transform import Rotation as R
+    # from scipy.spatial.transform import Rotation as R
 
-    quaternions_sampled = []
-    for i in range(len(rotations_sampled)):
-        r = R.from_matrix(rotations_sampled[i])
-        quaternions_sampled.append(r.as_quat())  # [x, y, z, w] format
-    quaternions_sampled = np.array(quaternions_sampled)  # [T_sampled, 4]
+    # quaternions_sampled = []
+    # for i in range(len(rotations_sampled)):
+    #     r = R.from_matrix(rotations_sampled[i])
+    #     quaternions_sampled.append(r.as_quat())  # [x, y, z, w] format
+    # quaternions_sampled = np.array(quaternions_sampled)  # [T_sampled, 4]
 
-    # Interpolate quaternions and translations
-    from scipy.interpolate import interp1d
-    from scipy.spatial.transform import Slerp
+    # # Interpolate quaternions and translations
+    # from scipy.interpolate import interp1d
+    # from scipy.spatial.transform import Slerp
 
-    quaternions_interpolated = np.zeros((T_original, 4))
-    translations_interpolated = np.zeros((T_original, 3))
+    # quaternions_interpolated = np.zeros((T_original, 4))
+    # translations_interpolated = np.zeros((T_original, 3))
 
-    # Interpolate translations (linear interpolation)
-    for coord in range(3):
-        f_trans = interp1d(
-            sampled_indices,
-            translations_sampled[:, coord],
-            kind="linear",
-            bounds_error=False,
-            fill_value="extrapolate",
-        )
-        translations_interpolated[:, coord] = f_trans(np.arange(T_original))
+    # # Interpolate translations (linear interpolation)
+    # for coord in range(3):
+    #     f_trans = interp1d(
+    #         sampled_indices,
+    #         translations_sampled[:, coord],
+    #         kind="linear",
+    #         bounds_error=False,
+    #         fill_value="extrapolate",
+    #     )
+    #     translations_interpolated[:, coord] = f_trans(np.arange(T_original))
 
-    # Interpolate rotations using SLERP for smooth rotation interpolation
-    # Create keyframes for SLERP
-    key_rots = R.from_matrix(rotations_sampled)
-    key_times = sampled_indices
+    # # Interpolate rotations using SLERP for smooth rotation interpolation
+    # # Create keyframes for SLERP
+    # key_rots = R.from_matrix(rotations_sampled)
+    # key_times = sampled_indices
 
-    # Only use SLERP if we have at least 2 keyframes
-    if len(key_times) >= 2:
-        slerp = Slerp(key_times, key_rots)
-        quaternions_interpolated = slerp(np.arange(T_original)).as_quat()
-    else:
-        # Fallback to nearest neighbor
-        for t in range(T_original):
-            nearest_idx = np.argmin(np.abs(np.array(sampled_indices) - t))
-            quaternions_interpolated[t] = quaternions_sampled[nearest_idx]
+    # # Only use SLERP if we have at least 2 keyframes
+    # if len(key_times) >= 2:
+    #     slerp = Slerp(key_times, key_rots)
+    #     quaternions_interpolated = slerp(np.arange(T_original)).as_quat()
+    # else:
+    #     # Fallback to nearest neighbor
+    #     for t in range(T_original):
+    #         nearest_idx = np.argmin(np.abs(np.array(sampled_indices) - t))
+    #         quaternions_interpolated[t] = quaternions_sampled[nearest_idx]
 
-    # Convert quaternions back to rotation matrices
-    rotations_interpolated = np.zeros((T_original, 3, 3))
-    for i in range(T_original):
-        r = R.from_quat(quaternions_interpolated[i])
-        rotations_interpolated[i] = r.as_matrix()
+    # # Convert quaternions back to rotation matrices
+    # rotations_interpolated = np.zeros((T_original, 3, 3))
+    # for i in range(T_original):
+    #     r = R.from_quat(quaternions_interpolated[i])
+    #     rotations_interpolated[i] = r.as_matrix()
 
-    # Reconstruct camera poses
-    camera_poses_interpolated = np.zeros((T_original, 4, 4))
-    camera_poses_interpolated[:, :3, :3] = rotations_interpolated
-    camera_poses_interpolated[:, :3, 3] = translations_interpolated
-    camera_poses_interpolated[:, 3, 3] = 1.0
+    # # Reconstruct camera poses
+    # camera_poses_interpolated = np.zeros((T_original, 4, 4))
+    # camera_poses_interpolated[:, :3, :3] = rotations_interpolated
+    # camera_poses_interpolated[:, :3, 3] = translations_interpolated
+    # camera_poses_interpolated[:, 3, 3] = 1.0
 
-    logging.info(f"Interpolated camera poses shape: {camera_poses_interpolated.shape}")
+    # logging.info(f"Interpolated camera poses shape: {camera_poses_interpolated.shape}")
 
     # ============ INTERPOLATE DEPTH MAPS ============
     logging.info("Interpolating depth maps to original video length...")
@@ -432,168 +432,168 @@ def spatracker2_process_folder(
 
     # Save as T_wc (world-to-camera) matrices
     camera_file = osp.join(camera_output_dir, f"{save_name}_cameras.npz")
-    np.savez_compressed(
-        camera_file,
-        poses=camera_poses_interpolated,  # [T, 4, 4] T_wc matrices
-        intrinsic=intrs[0]
-        if len(intrs) > 0
-        else None,  # Use first intrinsic if constant
-        sampled_indices=np.array(sampled_indices),
-        original_length=T_original,
-        H=H,
-        W=W,
-    )
+    # np.savez_compressed(
+    #     camera_file,
+    #     poses=camera_poses_interpolated,  # [T, 4, 4] T_wc matrices
+    #     intrinsic=intrs[0]
+    #     if len(intrs) > 0
+    #     else None,  # Use first intrinsic if constant
+    #     sampled_indices=np.array(sampled_indices),
+    #     original_length=T_original,
+    #     H=H,
+    #     W=W,
+    # )
 
     # Also save per-frame camera files (similar to depth format)
-    for frame_idx in range(T_original):
-        filename = f"camera_{frame_idx:05d}.npz"
-        filepath = osp.join(camera_output_dir, filename)
+    # for frame_idx in range(T_original):
+    #     filename = f"camera_{frame_idx:05d}.npz"
+    #     filepath = osp.join(camera_output_dir, filename)
 
-        np.savez_compressed(
-            filepath,
-            pose=camera_poses_interpolated[frame_idx],  # 4x4 T_wc matrix
-            intrinsic=intrs[0] if len(intrs) > 0 else None,
-        )
+    #     np.savez_compressed(
+    #         filepath,
+    #         pose=camera_poses_interpolated[frame_idx],  # 4x4 T_wc matrix
+    #         intrinsic=intrs[0] if len(intrs) > 0 else None,
+    #     )
 
-        if (frame_idx + 1) % 100 == 0:
-            logging.info(f"Saved {frame_idx + 1}/{T_original} camera frames")
+    #     if (frame_idx + 1) % 100 == 0:
+    #         logging.info(f"Saved {frame_idx + 1}/{T_original} camera frames")
 
-    logging.info(
-        f"Successfully saved {T_original} camera frames to {camera_output_dir}"
-    )
+    # logging.info(
+    #     f"Successfully saved {T_original} camera frames to {camera_output_dir}"
+    # )
 
-    # ============ OPTIONAL: Visualize camera trajectory ============
-    viz_camera_dir = osp.join(viz_dir, "camera_trajectory")
-    os.makedirs(viz_camera_dir, exist_ok=True)
+    # # ============ OPTIONAL: Visualize camera trajectory ============
+    # viz_camera_dir = osp.join(viz_dir, "camera_trajectory")
+    # os.makedirs(viz_camera_dir, exist_ok=True)
 
-    # Simple visualization: plot camera positions in 3D
-    try:
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
+    # # Simple visualization: plot camera positions in 3D
+    # try:
+    #     import matplotlib.pyplot as plt
+    #     from mpl_toolkits.mplot3d import Axes3D
 
-        fig = plt.figure(figsize=(10, 8))
-        ax = fig.add_subplot(111, projection="3d")
+    #     fig = plt.figure(figsize=(10, 8))
+    #     ax = fig.add_subplot(111, projection="3d")
 
-        # Plot camera centers (positions)
-        camera_centers = -np.einsum(
-            "tij,tj->ti",
-            camera_poses_interpolated[:, :3, :3].transpose(0, 2, 1),
-            camera_poses_interpolated[:, :3, 3],
-        )
+    #     # Plot camera centers (positions)
+    #     camera_centers = -np.einsum(
+    #         "tij,tj->ti",
+    #         camera_poses_interpolated[:, :3, :3].transpose(0, 2, 1),
+    #         camera_poses_interpolated[:, :3, 3],
+    #     )
 
-        ax.plot(
-            camera_centers[:, 0],
-            camera_centers[:, 1],
-            camera_centers[:, 2],
-            "b-",
-            alpha=0.7,
-        )
-        ax.scatter(
-            camera_centers[0, 0],
-            camera_centers[0, 1],
-            camera_centers[0, 2],
-            c="g",
-            s=100,
-            marker="o",
-            label="Start",
-        )
-        ax.scatter(
-            camera_centers[-1, 0],
-            camera_centers[-1, 1],
-            camera_centers[-1, 2],
-            c="r",
-            s=100,
-            marker="o",
-            label="End",
-        )
+    #     ax.plot(
+    #         camera_centers[:, 0],
+    #         camera_centers[:, 1],
+    #         camera_centers[:, 2],
+    #         "b-",
+    #         alpha=0.7,
+    #     )
+    #     ax.scatter(
+    #         camera_centers[0, 0],
+    #         camera_centers[0, 1],
+    #         camera_centers[0, 2],
+    #         c="g",
+    #         s=100,
+    #         marker="o",
+    #         label="Start",
+    #     )
+    #     ax.scatter(
+    #         camera_centers[-1, 0],
+    #         camera_centers[-1, 1],
+    #         camera_centers[-1, 2],
+    #         c="r",
+    #         s=100,
+    #         marker="o",
+    #         label="End",
+    #     )
 
-        # Mark sampled frames
-        sampled_centers = camera_centers[sampled_indices]
-        ax.scatter(
-            sampled_centers[:, 0],
-            sampled_centers[:, 1],
-            sampled_centers[:, 2],
-            c="orange",
-            s=50,
-            marker="^",
-            label="Sampled frames",
-        )
+    #     # Mark sampled frames
+    #     sampled_centers = camera_centers[sampled_indices]
+    #     ax.scatter(
+    #         sampled_centers[:, 0],
+    #         sampled_centers[:, 1],
+    #         sampled_centers[:, 2],
+    #         c="orange",
+    #         s=50,
+    #         marker="^",
+    #         label="Sampled frames",
+    #     )
 
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_zlabel("Z")
-        ax.set_title("Camera Trajectory (Interpolated)")
-        ax.legend()
+    #     ax.set_xlabel("X")
+    #     ax.set_ylabel("Y")
+    #     ax.set_zlabel("Z")
+    #     ax.set_title("Camera Trajectory (Interpolated)")
+    #     ax.legend()
 
-        plt.savefig(
-            osp.join(viz_camera_dir, "camera_trajectory.png"),
-            dpi=150,
-            bbox_inches="tight",
-        )
-        plt.close()
+    #     plt.savefig(
+    #         osp.join(viz_camera_dir, "camera_trajectory.png"),
+    #         dpi=150,
+    #         bbox_inches="tight",
+    #     )
+    #     plt.close()
 
-        logging.info(f"Camera trajectory visualization saved to {viz_camera_dir}")
-    except Exception as e:
-        logging.warning(f"Could not create camera trajectory visualization: {e}")
+    #     logging.info(f"Camera trajectory visualization saved to {viz_camera_dir}")
+    # except Exception as e:
+    #     logging.warning(f"Could not create camera trajectory visualization: {e}")
 
     # ============ SAVE DEPTH MAPS IN 0_00000.npz FORMAT ============
-    depth_output_dir = osp.join(working_dir, "spatracker2_depth")
-    os.makedirs(depth_output_dir, exist_ok=True)
+    # depth_output_dir = osp.join(working_dir, "spatracker2_depth")
+    # os.makedirs(depth_output_dir, exist_ok=True)
 
-    logging.info(f"Saving interpolated depth maps to {depth_output_dir}")
+    # logging.info(f"Saving interpolated depth maps to {depth_output_dir}")
 
-    for frame_idx in range(T_original):
-        # Format: 0_00000.npz, 0_00001.npz, etc.
-        filename = f"0_{frame_idx:05d}.npz"
-        filepath = osp.join(depth_output_dir, filename)
+    # for frame_idx in range(T_original):
+    #     # Format: 0_00000.npz, 0_00001.npz, etc.
+    #     filename = f"0_{frame_idx:05d}.npz"
+    #     filepath = osp.join(depth_output_dir, filename)
 
-        # Save depth map for this frame
-        np.savez_compressed(
-            filepath,
-            dep=depth_interpolated[frame_idx],
-        )
+    #     # Save depth map for this frame
+    #     np.savez_compressed(
+    #         filepath,
+    #         dep=depth_interpolated[frame_idx],
+    #     )
 
-        if (frame_idx + 1) % 100 == 0:
-            logging.info(f"Saved {frame_idx + 1}/{T_original} depth frames")
+    #     if (frame_idx + 1) % 100 == 0:
+    #         logging.info(f"Saved {frame_idx + 1}/{T_original} depth frames")
 
-    logging.info(f"Successfully saved {T_original} depth frames to {depth_output_dir}")
+    # logging.info(f"Successfully saved {T_original} depth frames to {depth_output_dir}")
 
-    # ============ OPTIONAL: Save a few depth visualization examples ============
-    viz_depth_dir = osp.join(viz_dir, "depth_maps_examples")
-    os.makedirs(viz_depth_dir, exist_ok=True)
+    # # ============ OPTIONAL: Save a few depth visualization examples ============
+    # viz_depth_dir = osp.join(viz_dir, "depth_maps_examples")
+    # os.makedirs(viz_depth_dir, exist_ok=True)
 
-    # Save a few example depth maps as visualizations
-    example_indices = [
-        0,
-        T_original // 4,
-        T_original // 2,
-        3 * T_original // 4,
-        T_original - 1,
-    ]
-    for idx in example_indices:
-        if idx < T_original:
-            # Normalize depth for visualization
-            depth_viz = depth_interpolated[idx]
-            if depth_viz.max() > depth_viz.min():
-                depth_viz = (depth_viz - depth_viz.min()) / (
-                    depth_viz.max() - depth_viz.min()
-                )
-            depth_viz = (depth_viz * 255).astype(np.uint8)
+    # # Save a few example depth maps as visualizations
+    # example_indices = [
+    #     0,
+    #     T_original // 4,
+    #     T_original // 2,
+    #     3 * T_original // 4,
+    #     T_original - 1,
+    # ]
+    # for idx in example_indices:
+    #     if idx < T_original:
+    #         # Normalize depth for visualization
+    #         depth_viz = depth_interpolated[idx]
+    #         if depth_viz.max() > depth_viz.min():
+    #             depth_viz = (depth_viz - depth_viz.min()) / (
+    #                 depth_viz.max() - depth_viz.min()
+    #             )
+    #         depth_viz = (depth_viz * 255).astype(np.uint8)
 
-            # Convert to color map for better visualization
-            depth_viz_color = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
-            cv2.imwrite(
-                osp.join(viz_depth_dir, f"depth_frame_{idx:05d}.png"), depth_viz_color
-            )
+    #         # Convert to color map for better visualization
+    #         depth_viz_color = cv2.applyColorMap(depth_viz, cv2.COLORMAP_JET)
+    #         cv2.imwrite(
+    #             osp.join(viz_depth_dir, f"depth_frame_{idx:05d}.png"), depth_viz_color
+    #         )
 
-    # Visualization on interpolated tracks
+    # # Visualization on interpolated tracks
     viz_choice = np.random.choice(
         pred2d_interpolated.shape[1],
         min(pred2d_interpolated.shape[1], max_viz_cnt),
         replace=False,
     )
 
-    # Create full video tensor for visualization
+    # # Create full video tensor for visualization
     full_video_original = torch.from_numpy(img_list).permute(0, 3, 1, 2).float()[None]
 
     vis.visualize(
@@ -615,8 +615,8 @@ def spatracker2_process_folder(
     return (
         tracks_interpolated,
         visibility_interpolated,
-        depth_interpolated,
-        camera_poses_interpolated,
+        # depth_interpolated,
+        # camera_poses_interpolated,
     )
 
 

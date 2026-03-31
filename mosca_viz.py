@@ -265,7 +265,6 @@ def viz_main(
 
 
 if __name__ == "__main__":
-
     # import argparse
 
     # args = argparse.ArgumentParser()
@@ -286,8 +285,8 @@ if __name__ == "__main__":
 
     viz_main(
         "./gsplat_test",
-        "/MoSca/demo/train/logs/demo_fit_native_add3_20251103_141533",
-        "/MoSca/profile/demo/demo_fit.yaml",
+        "/home/MoSca/data/nvidia/Skating/logs/depth_anything_bootstap_native_add3_20260219_111927",
+        "/home/MoSca/profile/demo/demo_fit.yaml",
         N=1,
         move_angle_deg=10,
     )

@@ -1,4 +1,4 @@
-exp_name: metric3d_spatracker2
+exp_name: missings_metric3d
 dep_mode: metric3d
 depth_dirname: metric3d_depth
 tap_mode: metric3d_spatracker2
@@ -136,13 +136,13 @@ photo_s_ctrl_prune_opacity_th: 0.05
 photo_s_ctrl_reset_opacity: 0.05
 
 # photo_s2d_trans_steps: [3000, 4000, 5000]
-photo_dyn_scf_prune_steps: [4500, 5500, 6500]
+photo_dyn_scf_prune_steps: [] # [4500, 5500, 6500]
 photo_dyn_scf_prune_sk_th: 0.02
 # photo_dyn_error_grow_steps: [4250, 5250]
 # dyn_error_grow_th: 0.3
 # dyn_error_grow_num_frames: 2
 
-photo_dyn_node_densify_steps: [4250, 5250]
+photo_dyn_node_densify_steps: [] #[4250, 5250]
 photo_dyn_node_densify_grad_th: 0.06
 photo_dyn_node_densify_record_start_steps: 2000
 

@@ -1,8 +1,13 @@
 exp_name: missing
 dep_mode: depth_anything
 depth_dirname: depth_anything_depth
-tap_mode: depth_anything_bootstap
+tap_mode: depth_anything_spatracker2
 mode: nvidia
+
+get_curve_refilter_shaking_th_world: 5.0
+get_curve_refilter_spatracker_consistency_th_world: 5.0
+get_curve_refilter_remove_shaking_curve: False
+
 
 epi_th: 0.001
 dyn_id_cnt: 0 # ! critical
@@ -11,9 +16,6 @@ dep_median: -1.0 # don't normalize for now
 iso_focal: True # ! for nvidia, use fx=fy
 
 tap_loading_min_valid_cnt: 0
-get_curve_refilter_shaking_th_world: 5.0
-get_curve_refilter_spatracker_consistency_th_world: 5.0
-get_curve_refilter_remove_shaking_curve: False
 
 depth_boundary_th: 0.3
 
@@ -61,7 +63,7 @@ geo_mosca_viz_interval: -1 #250
 geo_mosca_viz_debug_interval: -1 #250
 
 # * GS init
-gs_static_n_init: 100000 #50000 # 30000
+gs_static_n_init: 30000 #50000 # 30000
 gs_dynamic_n_init: 30000
 gs_radius_max: 1.0 # ! changed here
 gs_max_sph_order: 3
@@ -134,13 +136,13 @@ photo_s_ctrl_prune_opacity_th: 0.05
 photo_s_ctrl_reset_opacity: 0.05
 
 # photo_s2d_trans_steps: [3000, 4000, 5000]
-photo_dyn_scf_prune_steps: [4500, 5500, 6500]
+photo_dyn_scf_prune_steps: [] #[4500, 5500, 6500]
 photo_dyn_scf_prune_sk_th: 0.02
 # photo_dyn_error_grow_steps: [4250, 5250]
 # dyn_error_grow_th: 0.3
 # dyn_error_grow_num_frames: 2
 
-photo_dyn_node_densify_steps: [4250, 5250]
+photo_dyn_node_densify_steps: [] #[4250, 5250]
 photo_dyn_node_densify_grad_th: 0.06
 photo_dyn_node_densify_record_start_steps: 2000
 
