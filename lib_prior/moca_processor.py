@@ -346,6 +346,7 @@ class MoCaPrep:
         fn_list,
         img_list,
         K=None,
+        extrs=None,
         fallback_fov=53.13,
         # enhacne depth boundary
         enhance_depth_boudary_th=1.0,
@@ -362,11 +363,11 @@ class MoCaPrep:
         metric_alignment_fscale=0.001,
     ):
         if not hasattr(self, "depth_model"):
-            logging.warning(f"Depth model not loaded, skip depth")
+            logging.warning("Depth model not loaded, skip depth")
             return
         start_t = time.time()
         seed_everything(self.seed)
-        logging.info(f"Generating Depth")
+        logging.info("Generating Depth")
         try:
             self.depth_model.to(self.device)
         except:
@@ -396,6 +397,16 @@ class MoCaPrep:
                 dst=depth_save_dir,
                 fxfycxcy_pixel=fxfycxcy_pixel,
                 default_fov_deg=default_fov,
+                invalid_mask_list=invalid_mask_list,
+            )
+        elif self.dep_mode == "depth_anything":
+            self.depth_process_func(
+                self.depth_model,
+                img_list=img_list,
+                fn_list=fn_list,
+                dst=depth_save_dir,
+                intrs=K,
+                extrs=extrs,
                 invalid_mask_list=invalid_mask_list,
             )
         elif self.dep_mode == "depthcrafter":
@@ -623,7 +634,8 @@ class MoCaPrep:
         save_dir: str,
         # proc cfg
         n_track: int = 8192,
-        known_camera_K: np.ndarray = None,
+        known_camera_K: np.ndarray | None = None,
+        extrs: np.ndarray | None = None,
         #
         epi_num_threads=16,
         compute_flow=True,
@@ -665,6 +677,7 @@ class MoCaPrep:
                 img_name_list,
                 img_list,
                 K=known_camera_K,
+                extrs=extrs,
                 depthcrafter_denoising_steps=depthcrafter_denoising_steps,
                 # * boundary enhancement
                 enhance_depth_boudary_th=boundary_enhance_th,

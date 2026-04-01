@@ -1,7 +1,7 @@
 epi_th: 0.001
 depth_boundary_th: 1.0
 
-dep_mode: uni
+dep_mode: depth_anything
 tap_mode: bootstapir
 flow_mode: raft
 

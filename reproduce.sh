@@ -14,12 +14,7 @@ set -e
 scene_names=(
     spin teddy wheel apple block paper-windmill space-out
 )
-scene_names=(
- block
-)
-# scene_names=(
-#     teddy wheel
-# )
+
 num_scenes=${#scene_names[@]}
 scenes_per_gpu=$(((num_scenes + TOTAL_NUM_GPUS - 1) / TOTAL_NUM_GPUS))
 scenes_for_gpu=()
@@ -29,12 +24,12 @@ done
 echo "GPU $GPU_ID: ${scene_names[@]}"
 
 for scene in "${scene_names[@]}"; do
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/metric3d_prep.yaml  
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/depth_anything_prep.yaml
+    # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/metric3d_prep.yaml  
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_precompute.py --ws ./data/iphone/$scene --cfg ./profile/iphone/iphone_prep.yaml
     # CUDA_VISIBLE_DEVICES=1 python spatracker2_wrapper.py --ws /MoSca/data/iphone/$scene --cfg /MoSca/profile/eval/iphone/metric3d_prep.yaml  
 
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/metric3d.yaml
-    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/depth_anything.yaml
+    CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/iphone/iphone_fit.yaml
+    # CUDA_VISIBLE_DEVICES=$GPU_ID python mosca_reconstruct.py --ws ./data/iphone/$scene --cfg ./profile/eval/iphone/depth_anything.yaml
 done
 ###########################################################################################
 

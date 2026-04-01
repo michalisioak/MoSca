@@ -15,6 +15,7 @@ import logging
 from lib_prior.moca_processor import *
 from omegaconf import OmegaConf
 from lib_moca.moca_misc import make_pair_list
+from lite_moca_reconstruct import load_gt_cam
 
 
 # class PrecomputeConfig:
@@ -69,12 +70,58 @@ def preprocess(
 
     TAP_CHUNK_SIZE = getattr(pre_cfg, "tap_chunk_size", 5000)
 
+    if getattr(pre_cfg, "pose", True):
+        # if start form gt camera, load gt camera here
+        logging.info("Getting pose from GT camera")
+        (
+            gt_training_cam_T_wi,
+            gt_testing_cam_T_wi_list,
+            gt_testing_tids_list,
+            gt_testing_fns_list,
+            gt_training_fov,
+            gt_testing_fov_list,
+            gt_training_cxcy_ratio,
+            gt_testing_cxcy_ratio_list,
+        ) = load_gt_cam(ws, pre_cfg)
+        gt_fovdeg = float(gt_training_fov)
+        cxcy_ratio = gt_training_cxcy_ratio[0]  # gt camera center
+        H = img_list[0].shape[0]
+        W = img_list[0].shape[1]
+        if getattr(pre_cfg, "focal_only", False):
+            logging.info("Only focal length")
+            focal_length = (pre_cfg.image_size[0] / 2) / np.tan(
+                np.radians(gt_fovdeg / 2)
+            )
+            K = np.asarray(
+                [
+                    [focal_length, 0, H * cxcy_ratio[0]],
+                    [0, focal_length, W * cxcy_ratio[1]],
+                    [0, 0, 1],
+                ]
+            )
+            extrs = None
+        else:
+            focal_length = (H / 2) / np.tan(np.radians(gt_fovdeg / 2))
+            K = np.asarray(
+                [
+                    [focal_length, 0, H * cxcy_ratio[0]],
+                    [0, focal_length, W * cxcy_ratio[1]],
+                    [0, 0, 1],
+                ]
+            )
+            extrs = gt_training_cam_T_wi
+    else:
+        K = None
+        extrs = None
+
     moca_processor.process(
         t_list=None,
         img_list=img_list,
         img_name_list=img_fns,
         save_dir=ws,
         n_track=getattr(pre_cfg, "n_track_uniform", 8192),
+        known_camera_K=K,
+        extrs=extrs,
         # depth crafter
         depthcrafter_denoising_steps=getattr(
             pre_cfg, "depthcrafter_denoising_steps", 25

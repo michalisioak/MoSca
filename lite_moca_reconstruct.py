@@ -80,7 +80,7 @@ def static_reconstruct(ws, log_path, fit_cfg):
 
     if INIT_GT_CAMERA_FLAG:
         # if start form gt camera, load gt camera here
-        logging.info(f"Initializing from GT camera")
+        logging.info("Initializing from GT camera")
         (
             gt_training_cam_T_wi,
             gt_testing_cam_T_wi_list,
@@ -94,7 +94,7 @@ def static_reconstruct(ws, log_path, fit_cfg):
         gt_fovdeg = float(gt_training_fov)
         cxcy_ratio = gt_training_cxcy_ratio[0]  # gt camera center
         if getattr(fit_cfg, "init_gt_camera_focal_only", False):
-            logging.info(f"Only init focal length")
+            logging.info("Only init focal length")
             cams = MonocularCameras(
                 n_time_steps=s2d.T,
                 default_H=s2d.H,

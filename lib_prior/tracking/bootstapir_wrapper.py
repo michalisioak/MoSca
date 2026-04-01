@@ -125,7 +125,6 @@ def bootstapir_process_folder(
     video_pt, ori_H, ori_W, ori_video_pt = convert_img_list_to_tapnet_input(
         img_list, tap_size, tap_size
     )
-    print("video_pt shape:", video_pt.shape)
     video_pt = video_pt.to(device)
     logging.info(
         f"Loaded video frame: {video_pt.shape} and original size: {ori_H}x{ori_W}"
@@ -156,9 +155,7 @@ def bootstapir_process_folder(
 
     queries = get_uniform_random_queries(
         video_pt[None], total_n_pts, mask_list=sample_mask_list
-    ).squeeze(
-        0
-    )  # N,3 [t,Wind, Hind]
+    ).squeeze(0)  # N,3 [t,Wind, Hind]
     queries = queries[:, [0, 2, 1]]  # N,3 [t,Hind, Wind]
     queries = queries.to(torch.int32)
     queries[:, 0] = torch.clamp(queries[:, 0], 0, T - 1)
@@ -171,7 +168,7 @@ def bootstapir_process_folder(
     cur = 0
     tracks, visibility = [], []
     while cur < total_n_pts:
-        logging.info(f"Processing {cur}-{cur+chunk_size}/{total_n_pts}")
+        logging.info(f"Processing {cur}-{cur + chunk_size}/{total_n_pts}")
         cur_queries = queries[cur : min(cur + chunk_size, len(queries))]
         _tracks, _visibility = inference(video_pt, cur_queries, model)
         tracks.append(_tracks)
@@ -188,7 +185,6 @@ def bootstapir_process_folder(
 
     tracks = tracks.permute(1, 0, 2).cpu()
     visibility = visibility.permute(1, 0).cpu()
-    print(tracks.shape, visibility.shape)
 
     viz_choice = np.random.choice(tracks.shape[1], min(tracks.shape[1], max_viz_cnt))
     vis.visualize(
@@ -261,15 +257,7 @@ def inference(frames, query_points, model):
 
 
 if __name__ == "__main__":
-    src = "./demo/train"
-    img_dir = osp.join(src, "images")
-    img_fns = sorted(
-        [it for it in os.listdir(img_dir) if it.endswith(".png") or it.endswith(".jpg")]
-    )
-    img_list = [imageio.v2.imread(osp.join(img_dir, it))[..., :3] for it in img_fns]
-    uniform_sample_list = np.ones([len(img_list),img_list[0].shape[0],img_list[0].shape[1]]) > 0
+    src = "../../data/debug/C2_N11_S212_s03_T2_2/"
+    # src = "../../data/davis/horsejump-high"
     model = get_bootstapir_model()
-    bootstapir_process_folder(src,
-                              img_list=img_list, model=model, 
-                              total_n_pts=2000,
-                              sample_mask_list=uniform_sample_list)
+    bootstapir_process_folder(src, model, "cuda", 4096, 4096)
