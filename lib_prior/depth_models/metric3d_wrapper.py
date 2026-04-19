@@ -1,6 +1,7 @@
 import torch
 import numpy as np
-import os, os.path as osp
+import os
+import os.path as osp
 from tqdm import tqdm
 import cv2
 import sys
@@ -126,29 +127,87 @@ def metric3d_process_folder(
     # viz the depth in global consistent scale
     viz_depth_list(dep_list, dst + ".mp4")
 
-    return
+    return dep_list
 
 
 if __name__ == "__main__":
     device = "cuda"
-    # src = "../../data/nvidia_dev_N/Playground/"
-    # src = "../../data/nvidia_dev_H/Playground/"
-    src = "../../data/debug/C2_N11_S212_s03_T2_new/images"
+    src = "/home/MoSca/data/iphone/spin"
+
+    import imageio
+    from eval import abs_rel, load_gt_dep, load_iphone_gt_poses, laplacian_filter_depth
+    from viz import save_error_video_colormap
+
+    img_src = osp.expanduser(osp.join(src, "images"))
+    fns = os.listdir(img_src)
+    fns.sort()
+    fn_list = [fn for fn in fns if fn.endswith(".jpg") or fn.endswith(".png")]
+    img_list = np.array([imageio.imread(img_src + "/" + fn) for fn in fn_list])
+    (
+        gt_training_cam_T_wi,
+        gt_testing_cam_T_wi_list,
+        gt_testing_tids_list,
+        gt_testing_fns_list,
+        gt_training_fov,
+        gt_testing_fov_list,
+        gt_training_cxcy_ratio,
+        gt_testing_cxcy_ratio_list,
+    ) = load_iphone_gt_poses(src, 1)
+    gt_fovdeg = float(gt_training_fov)
+    cxcy_ratio = gt_training_cxcy_ratio[0]  # gt camera center
+    H = img_list[0].shape[0]
+    W = img_list[0].shape[1]
+
+    focal_length = (H / 2) / np.tan(np.radians(gt_fovdeg / 2))
+    K = np.asarray(
+        [
+            [focal_length, 0, H * cxcy_ratio[0]],
+            [0, focal_length, W * cxcy_ratio[1]],
+            [0, 0, 1],
+        ]
+    )
+    extrs = gt_training_cam_T_wi
 
     model = get_metric3dv2_model(device=device)
-
-    # load images and fns
-    fns = os.listdir(src)
-    fns.sort()
-    img_list, fn_list = [], []
-    for fn in fns:
-        if fn.endswith(".jpg") or fn.endswith(".png"):
-            img_list.append(cv2.imread(os.path.join(src, fn)))
-            fn_list.append(fn)
-
-    metric3d_process_folder(
+    deps = metric3d_process_folder(
         model,
-        img_list,
-        fn_list,
-        dst=osp.join("../../debug", "depth_m3d"),
+        fn_list=fn_list,
+        img_list=img_list,
+        dst=osp.join(src, "../debug/depth_anything"),
+        fxfycxcy_pixel=[K[0, 0], K[1, 1], K[0, 2], K[1, 2]],
+        default_fov_deg=gt_fovdeg,
+    )
+    gt_deps = load_gt_dep(src)
+
+    print("Abs Rel:", abs_rel(np.asarray(deps), np.asarray(gt_deps)))
+
+    pred_array = np.asarray(deps)
+    gt_array = np.asarray(gt_deps)
+
+    l1_error = np.abs(pred_array - gt_array)
+    save_error_video_colormap(
+        l1_error, osp.join(src, "debug", "metric3d", "l1.mp4"), cmap="inferno"
+    )
+    l2_error = (pred_array - gt_array) ** 2
+    save_error_video_colormap(
+        l2_error, osp.join(src, "debug", "metric3d", "l2.mp4"), cmap="inferno"
+    )
+    abs_rel_error = np.abs(pred_array - gt_array) / (gt_array + 1e-8)
+    save_error_video_colormap(
+        abs_rel_error,
+        osp.join(src, "debug", "metric3d", "abs_rel.mp4"),
+        cmap="inferno",
+    )
+
+    dep_mask, _ = laplacian_filter_depth(deps, 1)
+    # dep_mask = dep_mask * (deps > depth_min) * (deps < depth_max)
+    # dep = np.clip(dep, depth_min, depth_max)
+    print("Abs Rel (masked):", abs_rel(np.asarray(deps), np.asarray(gt_deps), dep_mask))
+    masked_abs_rel_error = (
+        np.abs(pred_array - gt_array) / (gt_array + 1e-8)
+    ) * dep_mask
+    save_error_video_colormap(
+        masked_abs_rel_error,
+        osp.join(src, "debug", "metric3d", "masked_abs_rel.mp4"),
+        cmap="inferno",
     )

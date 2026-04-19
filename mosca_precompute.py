@@ -89,9 +89,7 @@ def preprocess(
         W = img_list[0].shape[1]
         if getattr(pre_cfg, "focal_only", False):
             logging.info("Only focal length")
-            focal_length = (pre_cfg.image_size[0] / 2) / np.tan(
-                np.radians(gt_fovdeg / 2)
-            )
+            focal_length = (H / 2) / np.tan(np.radians(gt_fovdeg / 2))
             K = np.asarray(
                 [
                     [focal_length, 0, H * cxcy_ratio[0]],

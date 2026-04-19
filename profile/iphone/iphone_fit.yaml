@@ -1,4 +1,4 @@
-exp_name: da3_new_fit
+exp_name: da3_extra_bigger_fit
 mode: iphone
 
 epi_th: 0.00003
@@ -7,10 +7,12 @@ scf_geo_keyframe_rate: 4
 dep_median: -1.0 # don't normalize for now
 
 depth_dirname: depth_anything_depth
+# depth_dirname: metric3d_depth
 tap_mode: bootstapir
 tap_loading_min_valid_cnt: 4
 
-depth_boundary_th: 1.0
+depth_boundary_th: 1.6
+ba_depth_remove_th: 30.0
 
 # ! manually set the GT camera and focal lr to zero
 init_gt_camera: True

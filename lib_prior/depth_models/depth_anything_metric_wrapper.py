@@ -1,4 +1,3 @@
-import logging
 import os
 import os.path as osp
 import sys
@@ -9,7 +8,7 @@ import numpy as np
 
 sys.path.append(osp.abspath(osp.dirname(__file__)))
 
-import os, os.path as osp
+import os.path as osp
 
 import torch
 
@@ -18,7 +17,7 @@ from depth_utils import viz_depth_list, save_depth_list
 
 
 def get_depth_anything_model(device="cuda"):
-    model = DepthAnything3.from_pretrained("depth-anything/DA3NESTED-GIANT-LARGE-1.1")
+    model = DepthAnything3.from_pretrained("depth-anything/DA3METRIC-LARGE")
     model.to(device=device)
     model.eval()
     return model
@@ -31,8 +30,6 @@ def depth_anything_proccess_folder(
     fn_list: list[str],
     dst: str,
     invalid_mask_list=None,
-    frame_window_size=150,
-    overlap=0.7,
     intrs: ndarray | None = None,
     extrs: ndarray | None = None,
 ):
@@ -40,59 +37,28 @@ def depth_anything_proccess_folder(
     os.makedirs(dst, exist_ok=True)
     print(f"Processing {img_list.shape} images...")
     T, H, W, C = img_list.shape
-    if frame_window_size <= 0:
-        frame_window_size = T
+    assert intrs is not None, "Intrinsics are required for Depth-Anything Metric model"
+    assert extrs is not None, "Extrinsics are required for Depth-Anything Metric model"
+    pred = model.inference(
+        list(img_list),
+        ref_view_strategy="middle",
+        process_res=max(H, W),
+        # intrinsics=np.array([intrs] * len(img_list)) if intrs is not None else None,
+        # extrinsics=extrs,
+        use_ray_pose=True,
+    )
+    assert intrs is not None, "Intrinsics are required for Depth-Anything Metric model"
+    focal_pixels = (intrs[0, 0] + intrs[1, 1]) / 2.0
+
+    local_dep_list = pred.depth
+    for i in range(len(local_dep_list)):
+        local_dep_list[i] = focal_pixels * local_dep_list[i] / 300.0
     dep_list = []
-    curr = 0
-    overlap_frames = int(frame_window_size * overlap)
-    # intrs = []
-    while curr + overlap_frames < T:
-        print(f"Processing frames {curr} to {min(curr + frame_window_size, T)}...")
-        batched_images = list(img_list[curr : min(curr + frame_window_size, T)])
-        batched_extrs = (
-            list(extrs[curr : min(curr + frame_window_size, T)])
-            if extrs is not None
-            else None
+    for i in range(len(pred.depth)):
+        dep_list.append(
+            cv2.resize(pred.depth[i], (W, H), interpolation=cv2.INTER_NEAREST_EXACT)
         )
-        pred = model.inference(
-            batched_images,
-            ref_view_strategy="middle",
-            process_res=max(H, W),
-            intrinsics=np.asarray([intrs] * len(batched_images))
-            if intrs is not None
-            else None,
-            extrinsics=np.asarray(batched_extrs),
-            use_ray_pose=True,
-            # intrinsics=np.array(
-            #     intrs[curr - frame_window_size : min(curr, T - frame_window_size)]
-            # )
-            # if curr >= frame_window_size
-            # else None,
-        )
-
-        local_dep = []
-        for i in range(len(pred.depth)):
-            local_dep.append(
-                cv2.resize(pred.depth[i], (W, H), interpolation=cv2.INTER_NEAREST_EXACT)
-            )
-        local_intrs = pred.intrinsics
-        assert local_intrs is not None
-        if curr == 0:
-            dep_list.extend(local_dep)
-            # intrs.extend(list(local_intrs))
-        else:
-            for i in range(overlap_frames):
-                alpha = (i + 1) / (overlap_frames + 1)
-                blended = (
-                    dep_list[-overlap_frames + i] * (1 - alpha) + local_dep[i] * alpha
-                )
-                dep_list[-overlap_frames + i] = blended
-            dep_list.extend(local_dep[overlap_frames:])
-            # intrs.extend(list(local_intrs[overlap_frames:]))
-
-        curr += frame_window_size - overlap_frames
-
-    print(f"Saving depth maps... for {len(dep_list)} frames")
+    print(f"Saving depth maps... for {len(img_list)} frames")
     save_depth_list(dep_list, fn_list, dst, invalid_mask_list)
     viz_depth_list(dep_list, dst + ".mp4")
     torch.cuda.empty_cache()
@@ -104,7 +70,8 @@ if __name__ == "__main__":
     src = "/home/MoSca/data/iphone/spin"
 
     import imageio
-    from eval import abs_rel, load_gt_dep, load_iphone_gt_poses
+    from eval import abs_rel, load_gt_dep, load_iphone_gt_poses, laplacian_filter_depth
+    from viz import save_error_video_colormap
 
     img_src = osp.expanduser(osp.join(src, "images"))
     fns = os.listdir(img_src)
@@ -134,7 +101,7 @@ if __name__ == "__main__":
             [0, 0, 1],
         ]
     )
-    extrs = gt_training_cam_T_wi
+    extrs = gt_training_cam_T_wi.cpu().numpy()
 
     model = get_depth_anything_model(device=device)
     deps = depth_anything_proccess_folder(
@@ -148,3 +115,26 @@ if __name__ == "__main__":
     gt_deps = load_gt_dep(src)
 
     print("Abs Rel:", abs_rel(np.asarray(deps), np.asarray(gt_deps)))
+
+    pred_array = np.asarray(deps)
+    gt_array = np.asarray(gt_deps)
+
+    l1_error = np.abs(pred_array - gt_array)
+    save_error_video_colormap(
+        l1_error, osp.join(src, "debug", "depth_anything", "l1.mp4"), cmap="inferno"
+    )
+    l2_error = (pred_array - gt_array) ** 2
+    save_error_video_colormap(
+        l2_error, osp.join(src, "debug", "depth_anything", "l2.mp4"), cmap="inferno"
+    )
+    abs_rel_error = np.abs(pred_array - gt_array) / (gt_array + 1e-8)
+    save_error_video_colormap(
+        abs_rel_error,
+        osp.join(src, "debug", "depth_anything", "abs_rel.mp4"),
+        cmap="inferno",
+    )
+
+    dep_mask, _ = laplacian_filter_depth(deps)
+    # dep_mask = dep_mask * (deps > depth_min) * (deps < depth_max)
+    # dep = np.clip(dep, depth_min, depth_max)
+    print("Abs Rel (masked):", abs_rel(np.asarray(deps), np.asarray(gt_deps), dep_mask))

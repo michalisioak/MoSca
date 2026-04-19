@@ -186,10 +186,12 @@ class MoCaPrep:
                 f"DepthCrafter is not a metric model, align to metric model"
             )
         elif self.dep_mode == "depth_anything":
-            from depth_models.depth_anything_wrapper import (
+            from depth_models.depth_anything_metric_wrapper import (
                 depth_anything_proccess_folder,
             )
-            from depth_models.depth_anything_wrapper import get_depth_anything_model
+            from depth_models.depth_anything_metric_wrapper import (
+                get_depth_anything_model,
+            )
 
             self.depth_model = get_depth_anything_model()
             torch.cuda.empty_cache()

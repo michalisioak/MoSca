@@ -14,7 +14,9 @@ set -e
 scene_names=(
     spin teddy wheel apple block paper-windmill space-out
 )
-
+scene_names=(
+    spin
+)
 num_scenes=${#scene_names[@]}
 scenes_per_gpu=$(((num_scenes + TOTAL_NUM_GPUS - 1) / TOTAL_NUM_GPUS))
 scenes_for_gpu=()
